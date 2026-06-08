@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-brand-bg text-brand-text;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Smooth scrolling on iOS */
+  .scroll-smooth-ios {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer components {
+  /* Safe area insets for notched phones */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Sidebar transition */
+  .sidebar-transition {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  /* Card hover lift */
+  .card-hover {
+    @apply transition-shadow duration-200 hover:shadow-md;
+  }
+
+  /* Sold phone fade */
+  .phone-sold {
+    @apply opacity-60;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
