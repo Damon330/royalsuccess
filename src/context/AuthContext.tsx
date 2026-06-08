@@ -24,11 +24,30 @@ export const AuthContext = createContext<AuthContextValue>({
   refreshProfile:        async () => {},
 })
 
+// Read the URL hash synchronously — before any async auth event fires.
+// Supabase appends #access_token=...&type=recovery when the user clicks
+// a password-reset link, so we can detect it instantly on page load.
+function checkUrlForRecovery(): boolean {
+  try {
+    const hash = window.location.hash.slice(1)       // strip leading #
+    const params = new URLSearchParams(hash)
+    if (params.get('type') === 'recovery') return true
+    // Supabase v2 PKCE flow may use query string instead of hash
+    const query = new URLSearchParams(window.location.search)
+    return query.get('type') === 'recovery'
+  } catch {
+    return false
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session,            setSession]            = useState<Session | null>(null)
   const [profile,            setProfile]            = useState<Profile | null>(null)
-  const [loading,            setLoading]            = useState(true)
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false)
+  const recoveryOnLoad = checkUrlForRecovery()
+  // If the page loaded with a recovery URL, skip the loading spinner entirely —
+  // we already know what to render.
+  const [loading,            setLoading]            = useState(!recoveryOnLoad)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(recoveryOnLoad)
   const initialised = useRef(false)
 
   async function fetchProfile(userId: string, email?: string | null) {
@@ -106,6 +125,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function clearPasswordRecovery() {
     setIsPasswordRecovery(false)
+    // Remove the recovery token from the URL so a page refresh doesn't
+    // re-enter recovery mode after the password has been updated.
+    if (window.location.hash.includes('type=recovery')) {
+      window.history.replaceState(null, '', window.location.pathname)
+    }
   }
 
   async function signOut() {
