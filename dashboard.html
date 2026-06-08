@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Royal Success — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Theme tokens ───────────────────────────────────── */
+    body.light {
+      --bg:          #F4F5F7;
+      --sidebar-bg:  #FFFFFF;
+      --card-bg:     #FFFFFF;
+      --elevated-bg: #F9FAFB;
+      --text:        #0E0F14;
+      --muted:       #6B7080;
+      --border:      rgba(0,0,0,0.08);
+      --hover:       rgba(0,0,0,0.04);
+      --pos-bg:      #D1FAE5;
+      --pos-text:    #065F46;
+      --tip-bg:      #FFFFFF;
+    }
+    body.dark {
+      --bg:          #0E0F14;
+      --sidebar-bg:  #13141A;
+      --card-bg:     #1A1C24;
+      --elevated-bg: #1E2130;
+      --text:        #E8E9EF;
+      --muted:       #6B7080;
+      --border:      rgba(255,255,255,0.07);
+      --hover:       rgba(255,255,255,0.04);
+      --pos-bg:      #1A3A2A;
+      --pos-text:    #34C77B;
+      --tip-bg:      #1E2130;
+    }
+    :root {
+      --accent:      #2A3FFF;
+      --accent-pale: rgba(42,63,255,0.10);
+    }
+
+    /* ── Base ───────────────────────────────────────────── */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.5;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 12px;
+      position: fixed;
+      inset: 0 auto 0 0;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      margin-bottom: 24px;
+    }
+    .logo-mark {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+    }
+    .logo-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 10px;
+      height: 40px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--muted);
+      text-decoration: none;
+      user-select: none;
+    }
+    .nav-item:hover { background: var(--hover); color: var(--text); }
+    .nav-item.active { background: var(--accent); color: #fff; }
+    .nav-item.active .nav-badge { background: rgba(255,255,255,0.22); }
+
+    .nav-icon { width: 18px; height: 18px; flex-shrink: 0; }
+    .nav-icon svg { width: 18px; height: 18px; display: block; }
+
+    .nav-label { flex: 1; }
+
+    .nav-badge {
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--accent);
+      color: #fff;
+      padding: 1px 8px;
+      border-radius: 99px;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .nav-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 8px 0;
+    }
+
+    .sidebar-bottom {
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+
+    /* ── Main ───────────────────────────────────────────── */
+    .main {
+      margin-left: 220px;
+      flex: 1;
+      padding: 24px 28px;
+      min-width: 0;
+    }
+
+    /* ── Top bar ────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .page-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-theme {
+      width: 36px; height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card-bg);
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-theme:hover { color: var(--text); }
+    .btn-theme svg { width: 18px; height: 18px; display: block; }
+    .icon-sun  { display: none; }
+    .icon-moon { display: none; }
+    body.light .icon-sun  { display: block; }
+    body.dark  .icon-moon { display: block; }
+
+    .btn-add {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .btn-add svg { width: 14px; height: 14px; }
+
+    /* ── Stat cards ─────────────────────────────────────── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stat-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .stat-icon-wrap {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: var(--accent-pale);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .stat-icon-wrap svg { width: 16px; height: 16px; }
+    .stat-chevron { color: var(--muted); }
+    .stat-chevron svg { width: 16px; height: 16px; }
+    .stat-label { font-size: 12px; color: var(--muted); }
+    .stat-value {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .delta {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: var(--pos-bg);
+      color: var(--pos-text);
+      align-self: flex-start;
+    }
+
+    /* ── Chart card ─────────────────────────────────────── */
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .chart-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 12px;
+    }
+    .chart-meta-title {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .chart-meta-sub {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .chart-big-val {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+
+    .period-toggle {
+      display: flex;
+      background: var(--elevated-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .period-btn {
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .period-btn.active { background: var(--accent); color: #fff; }
+
+    .chart-area {
+      background: var(--elevated-bg);
+      border-radius: 8px;
+      padding: 16px 0 0;
+      position: relative;
+    }
+    .chart-svg { width: 100%; display: block; height: 200px; }
+
+    .chart-axis {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px 4px;
+    }
+    .axis-lbl { font-size: 11px; color: var(--muted); }
+
+    /* Tooltip */
+    .chart-tip {
+      position: absolute;
+      top: 0; left: 0;
+      background: var(--tip-bg);
+      border: 1px solid var(--accent);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 10px 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      min-width: 128px;
+      z-index: 10;
+    }
+    .chart-tip.show { opacity: 1; }
+    .tip-lbl  { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .tip-val  { font-size: 14px; font-weight: 600; color: var(--text); }
+    .tip-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Bottom row ─────────────────────────────────────── */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+    }
+
+    /* Activities */
+    .activities-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-title-row {
+      padding: 16px 20px 12px;
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      border-bottom: 1px solid var(--border);
+    }
+    .act-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .act-table th {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 20px;
+      text-align: left;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .act-table td {
+      padding: 12px 20px;
+      vertical-align: middle;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .act-table tr:last-child td { border-bottom: none; }
+
+    .act-name { font-size: 13px; color: var(--text); }
+    .act-id {
+      font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 10px;
+      border-radius: 99px;
+    }
+    .badge-added    { background: var(--accent-pale); color: var(--accent); }
+    .badge-assigned { background: var(--pos-bg); color: var(--pos-text); }
+    .badge-sold     { background: #FEF3C7; color: #92400E; }
+    .badge-returned { background: #FEE2E2; color: #991B1B; }
+    body.dark .badge-sold     { background: rgba(240,165,0,0.15); color: #F0A500; }
+    body.dark .badge-returned { background: rgba(220,38,38,0.15);  color: #F87171; }
+
+    .act-time { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    /* Tickets */
+    .tickets-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-title-badge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .count-badge {
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--accent);
+      color: #fff;
+      padding: 1px 8px;
+      border-radius: 99px;
+    }
+    .ticket-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 0.5px solid var(--border);
+      gap: 12px;
+    }
+    .ticket-row:last-child { border-bottom: none; }
+    .ticket-name { font-size: 13px; color: var(--text); font-weight: 500; margin-bottom: 2px; }
+    .ticket-date { font-size: 11px; color: var(--muted); }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 99px;
+      flex-shrink: 0;
+    }
+    .dot-pending  { background: #F0A500; }
+    .dot-open     { background: var(--accent); }
+    .dot-resolved { background: #34C77B; }
+  </style>
+</head>
+
+<body class="light">
+
+<!-- ════════════════ SIDEBAR ════════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">RS</div>
+    <span class="logo-name">Royal Success</span>
+  </div>
+
+  <nav class="nav">
+    <a class="nav-item active" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="currentColor">
+          <rect x="1" y="1" width="7" height="7" rx="1.5"/>
+          <rect x="10" y="1" width="7" height="7" rx="1.5"/>
+          <rect x="1" y="10" width="7" height="7" rx="1.5"/>
+          <rect x="10" y="10" width="7" height="7" rx="1.5"/>
+        </svg>
+      </span>
+      <span class="nav-label">Dashboard</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="14" height="14" rx="2"/>
+          <path d="M6 7h6M6 11h4"/>
+        </svg>
+      </span>
+      <span class="nav-label">Inventory</span>
+      <span class="nav-badge">12</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="9" cy="6" r="3.5"/>
+          <path d="M2 16c0-3 3.1-5.5 7-5.5s7 2.5 7 5.5"/>
+        </svg>
+      </span>
+      <span class="nav-label">Agents</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M3 5h12M3 9h8M3 13h10"/>
+        </svg>
+      </span>
+      <span class="nav-label">Activities</span>
+      <span class="nav-badge">4</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2L2 6l7 4 7-4-7-4zM2 12l7 4 7-4M2 9l7 4 7-4"/>
+        </svg>
+      </span>
+      <span class="nav-label">Reports</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 2l1.5 4.5H15l-3.75 2.7 1.5 4.5L9 11.1l-3.75 2.7 1.5-4.5L3 6.5h4.5z"/>
+        </svg>
+      </span>
+      <span class="nav-label">Receipts</span>
+    </a>
+
+    <div class="nav-divider"></div>
+
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <path d="M9 2a7 7 0 100 14A7 7 0 009 2z"/>
+          <path d="M9 6v4l2.5 2.5"/>
+        </svg>
+      </span>
+      <span class="nav-label">Returns</span>
+      <span class="nav-badge">5</span>
+    </a>
+
+  </nav>
+
+  <div class="sidebar-bottom">
+    <a class="nav-item" href="#">
+      <span class="nav-icon">
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="9" cy="9" r="2.5"/>
+          <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.41 1.41M13.37 13.37l1.41 1.41M3.22 14.78l1.41-1.41M13.37 4.63l1.41-1.41"/>
+        </svg>
+      </span>
+      <span class="nav-label">Settings</span>
+    </a>
+  </div>
+</aside>
+
+
+<!-- ════════════════ MAIN ════════════════ -->
+<main class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <h1 class="page-title">Dashboard</h1>
+    <div class="topbar-right">
+      <button class="btn-theme" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+        </svg>
+      </button>
+      <button class="btn-add">
+        Add New
+        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 5l4 4 4-4"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stat-row">
+
+    <div class="stat-card">
+      <div class="stat-head">
+        <div class="stat-icon-wrap">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="1" y="5" width="14" height="9" rx="1.5"/>
+            <path d="M5 5V4a3 3 0 016 0v1"/>
+          </svg>
+        </div>
+        <span class="stat-chevron">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 4l4 4-4 4"/></svg>
+        </span>
+      </div>
+      <div class="stat-label">Total Phones</div>
+      <div class="stat-value">1,284</div>
+      <span class="delta">↑ 8.2% this week</span>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-head">
+        <div class="stat-icon-wrap">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="8" cy="5.5" r="3"/>
+            <path d="M2 14c0-2.8 2.7-5 6-5s6 2.2 6 5"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-label">Active Agents</div>
+      <div class="stat-value">24</div>
+      <span class="delta">↑ 3 this month</span>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-head">
+        <div class="stat-icon-wrap">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1z"/>
+            <path d="M8 5v3l2 2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-label">Revenue This Month</div>
+      <div class="stat-value">₦2.4M</div>
+      <span class="delta">↑ 12.5% vs last</span>
+    </div>
+
+  </div>
+
+  <!-- Chart card -->
+  <div class="chart-card">
+    <div class="chart-head">
+      <div>
+        <div class="chart-meta-title">Sales Revenue</div>
+        <div class="chart-meta-sub">
+          <span class="chart-big-val">₦12.7M</span>
+          <span class="delta">↑ 9.4%</span>
+        </div>
+      </div>
+      <div class="period-toggle">
+        <button class="period-btn" onclick="setPeriod('daily',this)">Daily</button>
+        <button class="period-btn active" onclick="setPeriod('weekly',this)">Weekly</button>
+      </div>
+    </div>
+
+    <div class="chart-area" id="chartArea">
+      <svg class="chart-svg" id="chartSvg"></svg>
+      <div class="chart-axis" id="chartAxis"></div>
+      <div class="chart-tip" id="chartTip">
+        <div class="tip-lbl" id="tipLbl"></div>
+        <div class="tip-val" id="tipVal"></div>
+        <div class="tip-sub" id="tipSub"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-row">
+
+    <!-- Recent activities -->
+    <div class="activities-card">
+      <div class="card-title-row">Recent Activities</div>
+      <table class="act-table">
+        <thead>
+          <tr>
+            <th>Details</th>
+            <th>Activity</th>
+            <th>Date / Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="act-name">Samsung Galaxy A54</div>
+              <div class="act-id">IMEI: 352099001761481</div>
+            </td>
+            <td><span class="badge badge-added">Added</span></td>
+            <td class="act-time">Today, 09:12 AM</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="act-name">iPhone 13 Pro × 3</div>
+              <div class="act-id">Assigned → Kwame B.</div>
+            </td>
+            <td><span class="badge badge-assigned">Assigned</span></td>
+            <td class="act-time">Today, 08:45 AM</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="act-name">Tecno Camon 19</div>
+              <div class="act-id">Receipt: RS-2024-0042</div>
+            </td>
+            <td><span class="badge badge-sold">Sold</span></td>
+            <td class="act-time">Yesterday, 4:30 PM</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="act-name">Infinix Hot 12</div>
+              <div class="act-id">IMEI: 490154203237518</div>
+            </td>
+            <td><span class="badge badge-added">Added</span></td>
+            <td class="act-time">Yesterday, 2:17 PM</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="act-name">Samsung Galaxy S23</div>
+              <div class="act-id">Reason: Faulty screen</div>
+            </td>
+            <td><span class="badge badge-returned">Returned</span></td>
+            <td class="act-time">Jun 5, 11:20 AM</td>
+          </tr>
+          <tr>
+            <td>
+              <div class="act-name">Xiaomi Redmi Note 12</div>
+              <div class="act-id">Receipt: RS-2024-0038</div>
+            </td>
+            <td><span class="badge badge-sold">Sold</span></td>
+            <td class="act-time">Jun 5, 09:55 AM</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Returns / Tickets -->
+    <div class="tickets-card">
+      <div class="card-title-row">
+        <div class="card-title-badge">
+          <span>Pending Returns</span>
+          <span class="count-badge">5</span>
+        </div>
+      </div>
+      <div class="ticket-row">
+        <div>
+          <div class="ticket-name">Samsung Galaxy S23</div>
+          <div class="ticket-date">Jun 5 · Faulty screen</div>
+        </div>
+        <span class="status-dot dot-pending"></span>
+      </div>
+      <div class="ticket-row">
+        <div>
+          <div class="ticket-name">iPhone 14</div>
+          <div class="ticket-date">Jun 4 · Wrong model</div>
+        </div>
+        <span class="status-dot dot-open"></span>
+      </div>
+      <div class="ticket-row">
+        <div>
+          <div class="ticket-name">Tecno Spark 10</div>
+          <div class="ticket-date">Jun 3 · Dead on arrival</div>
+        </div>
+        <span class="status-dot dot-pending"></span>
+      </div>
+      <div class="ticket-row">
+        <div>
+          <div class="ticket-name">Infinix Zero 20</div>
+          <div class="ticket-date">Jun 2 · Approved</div>
+        </div>
+        <span class="status-dot dot-resolved"></span>
+      </div>
+      <div class="ticket-row">
+        <div>
+          <div class="ticket-name">Xiaomi 13T</div>
+          <div class="ticket-date">Jun 1 · Approved</div>
+        </div>
+        <span class="status-dot dot-resolved"></span>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+
+<script>
+// ── Theme toggle ───────────────────────────────────────────
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const b = document.body;
+  b.classList.toggle('dark');
+  b.classList.toggle('light');
+  drawChart(currentData);
+});
+
+// ── Chart data ─────────────────────────────────────────────
+const WEEKLY = [
+  { l: 'Jan', v: 820000,  n: 64  },
+  { l: 'Feb', v: 910000,  n: 71  },
+  { l: 'Mar', v: 760000,  n: 58  },
+  { l: 'Apr', v: 1080000, n: 89  },
+  { l: 'May', v: 1320000, n: 104 },
+  { l: 'Jun', v: 980000,  n: 76  },
+  { l: 'Jul', v: 1140000, n: 91  },
+  { l: 'Aug', v: 1470000, n: 117 },
+  { l: 'Sep', v: 1190000, n: 95  },
+  { l: 'Oct', v: 1550000, n: 124 },
+  { l: 'Nov', v: 1380000, n: 109 },
+  { l: 'Dec', v: 1710000, n: 136 },
+];
+const DAILY = [
+  { l: 'Mon', v: 42000, n: 3 },
+  { l: 'Tue', v: 68000, n: 5 },
+  { l: 'Wed', v: 53000, n: 4 },
+  { l: 'Thu', v: 91000, n: 7 },
+  { l: 'Fri', v: 74000, n: 6 },
+  { l: 'Sat', v: 38000, n: 2 },
+  { l: 'Sun', v: 22000, n: 1 },
+];
+
+let currentData = WEEKLY;
+
+function setPeriod(p, btn) {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentData = p === 'daily' ? DAILY : WEEKLY;
+  drawChart(currentData);
+}
+
+function fmt(v) {
+  if (v >= 1e6) return '₦' + (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return '₦' + (v / 1e3).toFixed(0) + 'k';
+  return '₦' + v;
+}
+
+function cssVar(n) {
+  return getComputedStyle(document.body).getPropertyValue(n).trim();
+}
+
+// Catmull-Rom smooth path
+function smoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = `M ${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(i + 2, pts.length - 1)];
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
+  }
+  return d;
+}
+
+function drawChart(data) {
+  const svg    = document.getElementById('chartSvg');
+  const axis   = document.getElementById('chartAxis');
+  const tip    = document.getElementById('chartTip');
+  const tipLbl = document.getElementById('tipLbl');
+  const tipVal = document.getElementById('tipVal');
+  const tipSub = document.getElementById('tipSub');
+  const area   = document.getElementById('chartArea');
+
+  // Use actual rendered width
+  const W = svg.getBoundingClientRect().width || 800;
+  const H = 200;
+  const PL = 12, PR = 12, PT = 20, PB = 8;
+  const IW = W - PL - PR;
+  const IH = H - PT - PB;
+  const n  = data.length;
+
+  const maxV = Math.max(...data.map(d => d.v));
+  const minV = Math.min(...data.map(d => d.v)) * 0.6;
+
+  const xs = data.map((_, i) => PL + (i / (n - 1)) * IW);
+  const ys = data.map(d => PT + IH - ((d.v - minV) / (maxV - minV)) * IH);
+  const pts = xs.map((x, i) => [x, ys[i]]);
+
+  const line = smoothPath(pts);
+  const fill = line
+    + ` L ${xs[n-1].toFixed(2)} ${(H - PB).toFixed(2)}`
+    + ` L ${xs[0].toFixed(2)} ${(H - PB).toFixed(2)} Z`;
+
+  // Gridlines at 25 / 50 / 75 %
+  const borderCol = cssVar('--border');
+  const gridLines = [0.25, 0.5, 0.75].map(t => {
+    const y = (PT + IH * (1 - t)).toFixed(2);
+    return `<line x1="${PL}" y1="${y}" x2="${(W - PR).toFixed(2)}" y2="${y}" stroke="${borderCol}" stroke-dasharray="4 4" stroke-width="1"/>`;
+  }).join('');
+
+  const cardBg = cssVar('--card-bg') || '#fff';
+  const gId    = 'g' + Math.random().toString(36).slice(2, 7);
+
+  // Hover dots (larger hit area using transparent circle overlay)
+  const dots = pts.map(([x, y], i) =>
+    `<g class="dot-g" data-i="${i}" style="cursor:pointer">
+       <circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="12" fill="transparent"/>
+       <circle class="dot-vis" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3.5" fill="#2A3FFF" stroke="${cardBg}" stroke-width="1.5"/>
+     </g>`
+  ).join('');
+
+  svg.setAttribute('viewBox', `0 0 ${W.toFixed(0)} ${H}`);
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="${gId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"   stop-color="#2A3FFF" stop-opacity="0.15"/>
+        <stop offset="100%" stop-color="#2A3FFF" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${gridLines}
+    <path d="${fill}" fill="url(#${gId})"/>
+    <path d="${line}" fill="none" stroke="#2A3FFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}
+  `;
+
+  // Axis labels
+  axis.innerHTML = data.map(d => `<span class="axis-lbl">${d.l}</span>`).join('');
+
+  // Tooltip
+  svg.querySelectorAll('.dot-g').forEach(g => {
+    g.addEventListener('mouseenter', () => {
+      const i   = parseInt(g.dataset.i);
+      const d   = data[i];
+      const dot = g.querySelector('.dot-vis');
+      const svgRect  = svg.getBoundingClientRect();
+      const dotRect  = dot.getBoundingClientRect();
+      const areaRect = area.getBoundingClientRect();
+
+      tipLbl.textContent = d.l;
+      tipVal.textContent = fmt(d.v);
+      tipSub.textContent = d.n + ' phones sold';
+
+      // Position relative to chart area
+      let left = dotRect.left - areaRect.left + 12;
+      let top  = dotRect.top  - areaRect.top  - 72;
+      if (left + 136 > areaRect.width - 8) left = left - 152;
+      if (top < 4) top = 4;
+
+      tip.style.transform = `translate(${left}px, ${top}px)`;
+      tip.classList.add('show');
+    });
+    g.addEventListener('mouseleave', () => tip.classList.remove('show'));
+  });
+}
+
+// ── Initial render + resize ────────────────────────────────
+requestAnimationFrame(() => drawChart(currentData));
+window.addEventListener('resize', () => drawChart(currentData));
+</script>
+</body>
+</html>

@@ -59,10 +59,9 @@ export default function AdminInventory() {
 
   const [mode,    setMode]   = useState<AddMode>('single')
   const [model,   setModel]  = useState('')
-  const [serial,  setSerial] = useState('')
   const [barcode, setBarcode] = useState('')
   const [imei,    setImei]   = useState('')
-  const [bulkSerials,  setBulkSerials]  = useState('')
+  const [bulkCount, setBulkCount] = useState('1')
   const [submitting,   setSubmitting]   = useState(false)
   const [filter, setFilter] = useState<PhoneStatus | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -159,7 +158,7 @@ export default function AdminInventory() {
   }
 
   function resetModal() {
-    setMode('single'); setModel(''); setSerial(''); setBarcode(''); setImei(''); setBulkSerials('')
+    setMode('single'); setModel(''); setBarcode(''); setImei(''); setBulkCount('1')
     setExcelRows([]); setExcelFileName(''); setShowAddModal(false)
     resetScanTab()
   }
@@ -230,17 +229,16 @@ export default function AdminInventory() {
     let ok = false
 
     if (mode === 'single' || mode === 'scan') {
-      if (!model.trim())  { toast.error('Enter a model name.');    setSubmitting(false); return }
-      if (!serial.trim()) { toast.error('Enter a serial number.'); setSubmitting(false); return }
-      ok = await addPhone(model.trim(), serial.trim(), profile, {
+      if (!model.trim()) { toast.error('Enter a model name.'); setSubmitting(false); return }
+      ok = await addPhone(model.trim(), profile, {
         barcode: barcode.trim() || undefined,
         imei:    imei.trim()    || undefined,
       })
     } else if (mode === 'bulk') {
       if (!model.trim()) { toast.error('Enter a model name.'); setSubmitting(false); return }
-      const serials = bulkSerials.split('\n').map((s) => s.trim()).filter(Boolean)
-      if (!serials.length) { toast.error('Enter at least one serial.'); setSubmitting(false); return }
-      ok = await addPhonesBulk(model.trim(), serials, profile)
+      const count = parseInt(bulkCount) || 1
+      if (count < 1 || count > 500) { toast.error('Enter a count between 1 and 500.'); setSubmitting(false); return }
+      ok = await addPhonesBulk(model.trim(), count, profile)
     } else {
       if (!excelRows.length) { toast.error('Select a file first.'); setSubmitting(false); return }
       ok = await importPhones(excelRows, profile)
@@ -250,7 +248,7 @@ export default function AdminInventory() {
       toast.success(mode === 'excel' ? `${excelRows.length} phone(s) imported.` : 'Phone added to inventory.')
       if (mode === 'scan') {
         // Stay in scan mode so they can scan the next phone
-        setModel(''); setSerial('')
+        setModel('')
         resetScanTab()
       } else {
         resetModal()
@@ -335,7 +333,7 @@ export default function AdminInventory() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-brand-border">
                   <tr>
-                    {['Model', 'Barcode / IMEI', 'Serial Number', 'Status', 'Holder', 'Added'].map((h) => (
+                    {['Model', 'Barcode / IMEI', 'Status', 'Holder', 'Added'].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -345,9 +343,8 @@ export default function AdminInventory() {
                     <tr key={phone.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-4 font-medium text-brand-text">{phone.model}</td>
                       <td className="px-5 py-4 font-mono text-xs text-brand-muted">
-                        {phone.barcode ?? phone.imei ?? <span className="text-gray-300">—</span>}
+                        {phone.imei ?? phone.barcode ?? <span className="text-gray-300">—</span>}
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs text-brand-muted">{phone.serial_number}</td>
                       <td className="px-5 py-4">
                         <Badge variant={STATUS_VARIANT[phone.status]}>{STATUS_LABEL[phone.status]}</Badge>
                       </td>
@@ -357,7 +354,7 @@ export default function AdminInventory() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-12 text-center text-brand-muted">
+                      <td colSpan={5} className="px-5 py-12 text-center text-brand-muted">
                         <MdQrCode2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
                         {phones.length === 0 ? 'No phones yet.' : 'No phones match your filter.'}
                       </td>
@@ -418,12 +415,6 @@ export default function AdminInventory() {
                   placeholder="15-digit IMEI (optional)"
                   className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-brand-text mb-1">Serial Number</label>
-                <input type="text" value={serial} onChange={(e) => setSerial(e.target.value)}
-                  placeholder="e.g. SN123456789"
-                  className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary" />
-              </div>
             </>
           )}
 
@@ -437,15 +428,12 @@ export default function AdminInventory() {
                   className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-brand-text mb-1">
-                  Serial Numbers <span className="text-brand-muted font-normal">(one per line)</span>
-                </label>
-                <textarea value={bulkSerials} onChange={(e) => setBulkSerials(e.target.value)}
-                  placeholder={"SN001\nSN002\nSN003"} rows={6}
-                  className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary" />
-                <p className="text-xs text-brand-muted mt-1">
-                  {bulkSerials.split('\n').filter((s) => s.trim()).length} serial(s) entered
-                </p>
+                <label className="block text-sm font-medium text-brand-text mb-1">Quantity</label>
+                <input type="number" min="1" max="500" value={bulkCount}
+                  onChange={(e) => setBulkCount(e.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                <p className="text-xs text-brand-muted mt-1">Max 500 at a time</p>
               </div>
             </>
           )}
@@ -617,16 +605,6 @@ export default function AdminInventory() {
                     )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-brand-text mb-1">Serial Number</label>
-                    <input
-                      type="text"
-                      value={serial}
-                      onChange={(e) => setSerial(e.target.value)}
-                      placeholder="e.g. SN123456789"
-                      className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
                 </>
               )}
             </div>

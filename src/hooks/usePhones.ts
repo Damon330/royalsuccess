@@ -135,14 +135,13 @@ export function usePhones(assignedTo?: string) {
   // ── Add single phone ────────────────────────────────────────
   async function addPhone(
     model:  string,
-    serial: string,
     actor:  Profile,
     opts?: { barcode?: string; imei?: string },
   ): Promise<boolean> {
     try {
       const row: Record<string, unknown> = {
         model,
-        serial_number: serial,
+        serial_number: opts?.imei || opts?.barcode || `RS-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
         status:        'in_stock',
       }
       if (opts?.barcode?.trim()) row.barcode = opts.barcode.trim()
@@ -154,17 +153,15 @@ export function usePhones(assignedTo?: string) {
       )
       if (error) { toast.error(`Add failed: ${error.message}`); return false }
 
-      // Realtime INSERT event updates local state — no refetch needed
       logActivity({
         actor_id:     actor.id,
         actor_name:   actor.full_name,
         role:         actor.role,
         action_type:  'STOCK_ADDED',
         entity_type:  'phone',
-        entity_label: `${model} / SN ${serial}`,
+        entity_label: model,
         meta:         {
           model,
-          serial,
           imei:    opts?.imei    || null,
           barcode: opts?.barcode || null,
           count:   1,
@@ -178,8 +175,12 @@ export function usePhones(assignedTo?: string) {
   }
 
   // ── Add bulk phones ─────────────────────────────────────────
-  async function addPhonesBulk(model: string, serials: string[], actor: Profile): Promise<boolean> {
-    const rows = serials.map((sn) => ({ model, serial_number: sn, status: 'in_stock' }))
+  async function addPhonesBulk(model: string, count: number, actor: Profile): Promise<boolean> {
+    const rows = Array.from({ length: count }, (_, i) => ({
+      model,
+      serial_number: `RS-${Date.now()}-${i}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
+      status: 'in_stock',
+    }))
     try {
       const { error } = await withTimeout(supabase.from('phones').insert(rows), MUTATE_TIMEOUT)
       if (error) { toast.error(`Bulk add failed: ${error.message}`); return false }
@@ -191,7 +192,7 @@ export function usePhones(assignedTo?: string) {
         action_type:  'STOCK_ADDED',
         entity_type:  'phone',
         entity_label: model,
-        meta:         { model, count: serials.length },
+        meta:         { model, count },
       })
       return true
     } catch {
@@ -273,7 +274,7 @@ export function usePhones(assignedTo?: string) {
         supabase.from('phones').insert(
           rows.map((r) => ({
             model:         r.model,
-            serial_number: r.serial_number,
+            serial_number: r.serial_number?.trim() || r.imei?.trim() || r.barcode?.trim() || `RS-${Date.now()}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
             barcode:       r.barcode?.trim() || null,
             imei:          r.imei?.trim()    || null,
             status:        'in_stock',
