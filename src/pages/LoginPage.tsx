@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showSignupHint, setShowSignupHint] = useState(false)
 
   async function handleGoogleSignIn() {
     setLoading(true)
@@ -48,10 +49,12 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         if (error.message.toLowerCase().includes('confirm')) {
-          toast.error('Please confirm your email first — check your inbox for a confirmation link, or ask admin to disable email confirmation in Supabase.')
+          toast.error('Please confirm your email first — check your inbox.')
         } else {
-          toast.error('Invalid email or password.')
+          setShowSignupHint(true)
         }
+      } else {
+        setShowSignupHint(false)
       }
     }
 
@@ -140,7 +143,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setShowSignupHint(false) }}
                   placeholder="you@example.com"
                   className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
@@ -172,12 +175,28 @@ export default function LoginPage() {
               <Button type="submit" loading={loading} fullWidth size="lg">
                 {mode === 'signin' ? 'Sign In' : 'Create Account'}
               </Button>
+
+              {mode === 'signin' && showSignupHint && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
+                  <p className="font-medium text-amber-800">Email or password is incorrect.</p>
+                  <p className="text-amber-700 mt-0.5">
+                    No account with this email?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setMode('signup'); setShowSignupHint(false) }}
+                      className="font-semibold underline hover:text-amber-900"
+                    >
+                      Create one now
+                    </button>
+                  </p>
+                </div>
+              )}
             </form>
 
             <p className="text-center text-sm text-brand-muted mt-5">
               {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
               <button
-                onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setShowSignupHint(false) }}
                 className="text-primary font-medium hover:underline"
               >
                 {mode === 'signin' ? 'Sign Up' : 'Sign In'}
