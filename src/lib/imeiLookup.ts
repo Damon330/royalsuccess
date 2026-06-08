@@ -9,12 +9,12 @@ export async function lookupByIMEI(imei: string): Promise<DeviceInfo | null> {
   if (!/^\d{15}$/.test(imei)) return null
   const tac = imei.slice(0, 8)
   try {
-    const res = await fetch(`https://tacdb.osmocom.org/tac/${tac}.json`, {
-      signal: AbortSignal.timeout(5000),
-    })
+    // Route through our own API to avoid CORS — falls back to direct call in local dev
+    const url = `/api/imei-lookup?tac=${tac}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
     if (!res.ok) return null
-    const data = (await res.json()) as { manufacturer?: string; model?: string }
-    if (!data.manufacturer && !data.model) return null
+    const data = (await res.json()) as { manufacturer?: string; model?: string } | null
+    if (!data || (!data.manufacturer && !data.model)) return null
     return {
       manufacturer: data.manufacturer ?? '',
       model:        data.model        ?? '',
