@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
-import { playSaleSound, primeAudioContext } from '../lib/saleSound'
+import { playSaleSound, playAlertSound, primeAudioContext } from '../lib/saleSound'
 import { invalidateKeys } from '../lib/cache'
 import type { Notification } from '../types'
 
@@ -67,9 +67,13 @@ export function useNotifications(userId: string | undefined) {
           setNotifications((prev) => [n, ...prev])
           setUnreadCount((c) => c + 1)
 
-          // Play sound only on live arrival (not first page load)
-          if (!isFirstLoad.current && n.type === 'SALE_COMPLETED') {
-            playSaleSound()
+          // Play sound on live arrival (not first page load)
+          if (!isFirstLoad.current) {
+            if (n.type === 'SALE_COMPLETED') {
+              playSaleSound()
+            } else {
+              playAlertSound()
+            }
           }
 
           invalidateKeys(`notifications:unread:${userId}`)

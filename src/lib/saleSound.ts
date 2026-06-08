@@ -17,6 +17,28 @@ export function primeAudioContext() {
   getCtx().resume()
 }
 
+// Short two-note ping — used for new user signups / general alerts
+export function playAlertSound() {
+  try {
+    const ctx = getCtx()
+    if (ctx.state === 'suspended') { ctx.resume() }
+
+    const osc  = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(880, ctx.currentTime)          // A5
+    osc.frequency.setValueAtTime(1174, ctx.currentTime + 0.12)  // D6
+    gain.gain.setValueAtTime(0.35, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.35)
+  } catch {
+    // Silently ignore
+  }
+}
+
 export function playSaleSound() {
   try {
     const ctx = getCtx()

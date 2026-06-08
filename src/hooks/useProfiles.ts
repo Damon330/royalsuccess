@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
+import { playAlertSound, primeAudioContext } from '../lib/saleSound'
 import type { Profile, Role } from '../types'
 import toast from 'react-hot-toast'
 
@@ -33,6 +34,7 @@ export function useProfiles() {
   const [profiles, setProfiles] = useState<Profile[]>(() => getCached() ?? [])
   const [loading,  setLoading]  = useState(() => getCached() === null)
   const [dbError,  setDbError]  = useState(false)
+  const isFirstLoad = useRef(true)
 
   const fetchProfiles = useCallback(async (force = false) => {
     const cached = getCached()
@@ -56,7 +58,46 @@ export function useProfiles() {
     }
   }, [])
 
-  useEffect(() => { fetchProfiles() }, [fetchProfiles])
+  useEffect(() => {
+    fetchProfiles()
+
+    // Realtime: pick up new signups immediately so admin sees pending users
+    // without waiting for the 5-minute cache to expire.
+    const channel = supabase
+      .channel('profiles-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
+        const newProfile = payload.new as Profile
+        // Update local state and cache
+        setProfiles((prev) => {
+          if (prev.find((p) => p.id === newProfile.id)) return prev
+          const updated = [newProfile, ...prev]
+          setCache(updated)
+          return updated
+        })
+        // Play alert sound for new pending users (skip on initial load)
+        if (!isFirstLoad.current && newProfile.status === 'pending') {
+          playAlertSound()
+          toast('New user pending approval — check Agents tab.', { icon: '👤' })
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+        const updated = payload.new as Profile
+        setProfiles((prev) => {
+          const next = prev.map((p) => p.id === updated.id ? updated : p)
+          setCache(next)
+          return next
+        })
+      })
+      .subscribe()
+
+    isFirstLoad.current = false
+    document.addEventListener('click', primeAudioContext, { once: true })
+
+    return () => {
+      channel.unsubscribe()
+      supabase.removeChannel(channel)
+    }
+  }, [fetchProfiles])
 
   async function approveUser(userId: string, role: Role, teamLeadId?: string) {
     const update: Partial<Profile> = { status: 'active', role }
