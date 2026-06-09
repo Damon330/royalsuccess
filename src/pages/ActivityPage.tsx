@@ -6,10 +6,15 @@ import Header from '../components/shared/Header'
 
 export default function ActivityPage() {
   const { profile } = useAuth()
+
+  // Agents only ever see their own activity — pass their ID as a fixed filter
+  // so both the DB query and the Realtime subscription are scoped correctly.
+  const agentId = profile?.role === 'agent' ? profile.id : undefined
+
   const {
     entries, loading, loadingMore, hasMore, dbError,
     filters, updateFilters, fetchMore, refetch,
-  } = useActivityLog()
+  } = useActivityLog({ agentId })
 
   const { agents } = useProfiles()
 

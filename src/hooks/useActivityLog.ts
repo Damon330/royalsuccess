@@ -84,24 +84,36 @@ export function useActivityLog(initialFilters?: Partial<ActivityFilters>) {
     fetchFirst()
   }, [fetchFirst])
 
-  // Realtime subscription — prepend new entries
+  // Realtime subscription — prepend new entries.
+  // When agentId filter is active, scope the subscription to that agent so
+  // Supabase delivers the event even when RLS restricts visibility.
   useEffect(() => {
+    const agentId = filters.agentId
+
+    const pgFilter = agentId
+      ? { event: 'INSERT' as const, schema: 'public', table: 'activity_log', filter: `agent_id=eq.${agentId}` }
+      : { event: 'INSERT' as const, schema: 'public', table: 'activity_log' }
+
+    // Use a unique channel name so multiple instances don't conflict
+    const channelName = agentId ? `activity-log-${agentId}` : 'activity-log-admin'
+
     const channel = supabase
-      .channel('activity-log-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'activity_log' },
-        (payload) => {
-          setEntries((prev) => [payload.new as ActivityLogEntry, ...prev])
-        },
-      )
+      .channel(channelName)
+      .on('postgres_changes', pgFilter, (payload) => {
+        const newEntry = payload.new as ActivityLogEntry
+        setEntries((prev) => {
+          // Deduplicate in case the fetch and realtime race
+          if (prev.find((e) => e.id === newEntry.id)) return prev
+          return [newEntry, ...prev]
+        })
+      })
       .subscribe()
 
     return () => {
       channel.unsubscribe()
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [filters.agentId])
 
   function updateFilters(patch: Partial<ActivityFilters>) {
     setFilters((prev) => ({ ...prev, ...patch }))
