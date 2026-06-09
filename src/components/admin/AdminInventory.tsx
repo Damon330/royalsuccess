@@ -5,6 +5,7 @@ import Button from '../shared/Button'
 import Badge from '../shared/Badge'
 import Modal from '../shared/Modal'
 import ScannerModal from '../shared/ScannerModal'
+import Pagination from '../shared/Pagination'
 import { usePhones } from '../../hooks/usePhones'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useAuth } from '../../hooks/useAuth'
@@ -12,6 +13,8 @@ import { useBarcodeScan } from '../../hooks/useBarcodeScan'
 import { lookupByIMEI } from '../../lib/imeiLookup'
 import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
+
+const INV_PAGE_SIZE = 25
 import {
   MdAdd, MdQrCode2, MdWarning, MdRefresh, MdUploadFile,
   MdDownload, MdCheckCircle, MdQrCodeScanner, MdCameraAlt,
@@ -63,8 +66,9 @@ export default function AdminInventory() {
   const [imei,    setImei]   = useState('')
   const [bulkCount, setBulkCount] = useState('1')
   const [submitting,   setSubmitting]   = useState(false)
-  const [filter, setFilter] = useState<PhoneStatus | 'all'>('all')
-  const [search, setSearch] = useState('')
+  const [filter,    setFilter]    = useState<PhoneStatus | 'all'>('all')
+  const [search,    setSearch]    = useState('')
+  const [invPage,   setInvPage]   = useState(1)
 
   const [excelRows,     setExcelRows]     = useState<ExcelRow[]>([])
   const [excelFileName, setExcelFileName] = useState('')
@@ -151,6 +155,9 @@ export default function AdminInventory() {
       (p.barcode ?? '').toLowerCase().includes(search.toLowerCase())
     return matchStatus && matchSearch
   })
+
+  const invTotalPages = Math.max(1, Math.ceil(filtered.length / INV_PAGE_SIZE))
+  const paginated     = filtered.slice((invPage - 1) * INV_PAGE_SIZE, invPage * INV_PAGE_SIZE)
 
   function getAssigneeName(assignedTo: string | null) {
     if (!assignedTo) return '—'
@@ -301,7 +308,7 @@ export default function AdminInventory() {
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="flex items-center gap-2 flex-wrap">
             {allFilters.map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
+              <button key={f} onClick={() => { setFilter(f); setInvPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   filter === f ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-gray-50'
                 }`}>
@@ -311,7 +318,7 @@ export default function AdminInventory() {
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <input type="text" placeholder="Search model, SN, IMEI or barcode…" value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setInvPage(1) }}
               className="border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1 sm:w-64" />
             <button onClick={() => setShowScannerModal(true)} title="Scan IMEI / barcode"
               className="flex items-center gap-1.5 border border-brand-border bg-white hover:bg-gray-50 text-brand-text px-3 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -339,7 +346,7 @@ export default function AdminInventory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border">
-                  {filtered.map((phone) => (
+                  {paginated.map((phone) => (
                     <tr key={phone.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-4 font-medium text-brand-text">{phone.model}</td>
                       <td className="px-5 py-4 font-mono text-xs text-brand-muted">
@@ -362,6 +369,14 @@ export default function AdminInventory() {
                   )}
                 </tbody>
               </table>
+
+              <Pagination
+                page={invPage}
+                totalPages={invTotalPages}
+                totalCount={filtered.length}
+                pageSize={INV_PAGE_SIZE}
+                onPageChange={setInvPage}
+              />
             </div>
           )}
         </div>

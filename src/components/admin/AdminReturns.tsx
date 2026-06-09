@@ -7,7 +7,10 @@ import Badge from '../shared/Badge'
 import Button from '../shared/Button'
 import Modal from '../shared/Modal'
 import Spinner from '../shared/Spinner'
+import Pagination from '../shared/Pagination'
 import { MdCheckCircle, MdCancel, MdWarning, MdRefresh, MdInbox } from 'react-icons/md'
+
+const RETURNS_PAGE_SIZE = 25
 
 type FilterStatus = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -65,6 +68,7 @@ export default function AdminReturns() {
   const [dateTo,       setDateTo]       = useState('')
   const [rejectingId,  setRejectingId]  = useState<string | null>(null)
   const [approving,    setApproving]    = useState<string | null>(null)
+  const [retPage,      setRetPage]      = useState(1)
 
   // Guard: returns is always an array from the hook, but be safe
   const safeReturns = Array.isArray(returns) ? returns : []
@@ -78,8 +82,10 @@ export default function AdminReturns() {
     return true
   })
 
-  const pendingCount = safeReturns.filter((r) => r.return_status === 'PENDING').length
-  const allAgents    = [...(agents ?? []), ...(teamLeads ?? [])]
+  const pendingCount  = safeReturns.filter((r) => r.return_status === 'PENDING').length
+  const allAgents     = [...(agents ?? []), ...(teamLeads ?? [])]
+  const retTotalPages = Math.max(1, Math.ceil(filtered.length / RETURNS_PAGE_SIZE))
+  const paginatedRet  = filtered.slice((retPage - 1) * RETURNS_PAGE_SIZE, retPage * RETURNS_PAGE_SIZE)
 
   async function handleApprove(id: string) {
     if (!profile) return
@@ -139,7 +145,7 @@ export default function AdminReturns() {
         <div className="bg-white border border-brand-border rounded-xl p-4 flex flex-wrap gap-3 items-end">
           <div>
             <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+            <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value as FilterStatus); setRetPage(1) }}
               className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
               <option value="ALL">All</option>
               <option value="PENDING">Pending</option>
@@ -184,7 +190,7 @@ export default function AdminReturns() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border">
-                  {filtered.map((ret) => {
+                  {paginatedRet.map((ret) => {
                     // Safely read joined objects
                     const phone     = ret.phone     as Record<string, unknown> | null | undefined
                     const requester = ret.requester as Record<string, unknown> | null | undefined
@@ -268,6 +274,14 @@ export default function AdminReturns() {
                   )}
                 </tbody>
               </table>
+
+              <Pagination
+                page={retPage}
+                totalPages={retTotalPages}
+                totalCount={filtered.length}
+                pageSize={RETURNS_PAGE_SIZE}
+                onPageChange={setRetPage}
+              />
             </div>
           )}
         </div>

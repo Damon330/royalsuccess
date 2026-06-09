@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useReceipts } from '../../hooks/useReceipts'
+import { useReceipts, RECEIPTS_PAGE_SIZE } from '../../hooks/useReceipts'
 import { useProfiles } from '../../hooks/useProfiles'
 import Header from '../shared/Header'
 import Badge from '../shared/Badge'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Spinner from '../shared/Spinner'
+import Pagination from '../shared/Pagination'
 import type { Receipt } from '../../types'
 import { MdDownload, MdWarning, MdRefresh, MdReceipt } from 'react-icons/md'
 
@@ -37,32 +38,26 @@ function VoidConfirmModal({ receipt, onConfirm, onClose }: {
 }
 
 export default function AdminReceipts() {
-  const { receipts, loading, dbError, missingTable, voidReceipt, refetch } = useReceipts()
+  const {
+    receipts, loading, dbError, missingTable,
+    page, totalPages, totalCount,
+    filters, updateFilters, goToPage,
+    voidReceipt, refetch,
+  } = useReceipts()
   const { agents, teamLeads } = useProfiles()
 
-  const [search,       setSearch]       = useState('')
-  const [filterAgent,  setFilterAgent]  = useState('')
-  const [filterMethod, setFilterMethod] = useState('')
-  const [dateFrom,     setDateFrom]     = useState('')
-  const [dateTo,       setDateTo]       = useState('')
-  const [showVoided,   setShowVoided]   = useState(false)
-  const [voidTarget,   setVoidTarget]   = useState<Receipt | null>(null)
+  // Text search is client-side (operates on the current page)
+  const [search,     setSearch]     = useState('')
+  const [voidTarget, setVoidTarget] = useState<Receipt | null>(null)
 
   const allAgents = [...agents, ...teamLeads]
 
-  const filtered = receipts.filter((r) => {
-    if (!showVoided && r.voided) return false
-    if (filterAgent  && r.agent_id   !== filterAgent)  return false
-    if (filterMethod && r.payment_method !== filterMethod) return false
-    if (dateFrom && r.generated_at < dateFrom) return false
-    if (dateTo   && r.generated_at > dateTo + 'T23:59:59Z') return false
-    if (search) {
-      const q = search.toLowerCase()
-      const buyerMatch = r.buyer_name.toLowerCase().includes(q) || r.buyer_phone.includes(q)
-      if (!buyerMatch) return false
-    }
-    return true
-  })
+  const displayed = search
+    ? receipts.filter((r) => {
+        const q = search.toLowerCase()
+        return r.buyer_name.toLowerCase().includes(q) || r.buyer_phone.includes(q)
+      })
+    : receipts
 
   function downloadReceipt(r: Receipt) {
     if (r.pdf_url) {
@@ -114,7 +109,7 @@ export default function AdminReceipts() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">Agent</label>
-            <select value={filterAgent} onChange={(e) => setFilterAgent(e.target.value)}
+            <select value={filters.agentId ?? ''} onChange={(e) => updateFilters({ agentId: e.target.value || undefined })}
               className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
               <option value="">All</option>
               {allAgents.map((a) => <option key={a.id} value={a.id}>{a.full_name}</option>)}
@@ -122,7 +117,7 @@ export default function AdminReceipts() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">Payment</label>
-            <select value={filterMethod} onChange={(e) => setFilterMethod(e.target.value)}
+            <select value={filters.paymentMethod ?? ''} onChange={(e) => updateFilters({ paymentMethod: e.target.value || undefined })}
               className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
               <option value="">All</option>
               <option value="CASH">Cash</option>
@@ -132,16 +127,16 @@ export default function AdminReceipts() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">From</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            <input type="date" value={filters.dateFrom ?? ''} onChange={(e) => updateFilters({ dateFrom: e.target.value || undefined })}
               className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">To</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            <input type="date" value={filters.dateTo ?? ''} onChange={(e) => updateFilters({ dateTo: e.target.value || undefined })}
               className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
           </div>
           <label className="flex items-center gap-2 text-sm text-brand-muted cursor-pointer select-none">
-            <input type="checkbox" checked={showVoided} onChange={(e) => setShowVoided(e.target.checked)}
+            <input type="checkbox" checked={!!filters.showVoided} onChange={(e) => updateFilters({ showVoided: e.target.checked || undefined })}
               className="rounded" />
             Show voided
           </label>
@@ -152,75 +147,85 @@ export default function AdminReceipts() {
           {loading ? (
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-brand-border">
-                  <tr>
-                    {['Receipt No', 'Buyer', 'Phone Model', 'Agent', 'Amount', 'Payment', 'Date', 'Status', 'Actions'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-border">
-                  {filtered.map((r) => {
-                    const phone = r.phone as { model?: string; imei?: string } | undefined
-                    const agentProfile = allAgents.find((a) => a.id === r.agent_id)
-                    return (
-                      <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.voided ? 'opacity-60' : ''}`}>
-                        <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{r.receipt_number}</td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-brand-text">{r.buyer_name}</p>
-                          <p className="text-xs text-brand-muted">{r.buyer_phone}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-brand-text">{phone?.model ?? '—'}</p>
-                          {phone?.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
-                        </td>
-                        <td className="px-4 py-3 text-brand-muted">{agentProfile?.full_name ?? '—'}</td>
-                        <td className="px-4 py-3 font-semibold text-brand-text">
-                          ₦{r.selling_price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={r.payment_method === 'CASH' ? 'green' : r.payment_method === 'TRANSFER' ? 'blue' : 'primary'}>
-                            {r.payment_method}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-brand-muted whitespace-nowrap">
-                          {new Date(r.generated_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.voided
-                            ? <Badge variant="red">Voided</Badge>
-                            : <Badge variant="green">Active</Badge>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => downloadReceipt(r)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 bg-primary-pale hover:bg-primary/10 text-primary rounded-lg text-xs font-medium transition-colors">
-                              <MdDownload className="w-3.5 h-3.5" /> Download
-                            </button>
-                            {!r.voided && (
-                              <button onClick={() => setVoidTarget(r)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-medium transition-colors">
-                                Void
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-brand-border">
+                    <tr>
+                      {['Receipt No', 'Buyer', 'Phone Model', 'Agent', 'Amount', 'Payment', 'Date', 'Status', 'Actions'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-border">
+                    {displayed.map((r) => {
+                      const phone = r.phone as { model?: string; imei?: string } | undefined
+                      const agentProfile = allAgents.find((a) => a.id === r.agent_id)
+                      return (
+                        <tr key={r.id} className={`hover:bg-gray-50 transition-colors ${r.voided ? 'opacity-60' : ''}`}>
+                          <td className="px-4 py-3 font-mono text-xs font-semibold text-primary">{r.receipt_number}</td>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-brand-text">{r.buyer_name}</p>
+                            <p className="text-xs text-brand-muted">{r.buyer_phone}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-brand-text">{phone?.model ?? '—'}</p>
+                            {phone?.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
+                          </td>
+                          <td className="px-4 py-3 text-brand-muted">{agentProfile?.full_name ?? '—'}</td>
+                          <td className="px-4 py-3 font-semibold text-brand-text">
+                            ₦{r.selling_price.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={r.payment_method === 'CASH' ? 'green' : r.payment_method === 'TRANSFER' ? 'blue' : 'primary'}>
+                              {r.payment_method}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-brand-muted whitespace-nowrap">
+                            {new Date(r.generated_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="px-4 py-3">
+                            {r.voided
+                              ? <Badge variant="red">Voided</Badge>
+                              : <Badge variant="green">Active</Badge>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => downloadReceipt(r)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-primary-pale hover:bg-primary/10 text-primary rounded-lg text-xs font-medium transition-colors">
+                                <MdDownload className="w-3.5 h-3.5" /> Download
                               </button>
-                            )}
-                          </div>
+                              {!r.voided && (
+                                <button onClick={() => setVoidTarget(r)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-medium transition-colors">
+                                  Void
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {displayed.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-5 py-14 text-center text-brand-muted">
+                          <MdReceipt className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                          No receipts found.
                         </td>
                       </tr>
-                    )
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="px-5 py-14 text-center text-brand-muted">
-                        <MdReceipt className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                        No receipts found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                totalCount={totalCount}
+                pageSize={RECEIPTS_PAGE_SIZE}
+                onPageChange={goToPage}
+              />
+            </>
           )}
         </div>
       </div>

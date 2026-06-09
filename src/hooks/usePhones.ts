@@ -24,6 +24,7 @@ export function usePhones(assignedTo?: string) {
         .from('phones')
         .select('*')
         .order('created_at', { ascending: false })
+        .limit(500)
 
       if (assignedTo) query = query.eq('assigned_to', assignedTo)
 
