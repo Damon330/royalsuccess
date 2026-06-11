@@ -172,8 +172,15 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
   // ── Admin / TL approves → phone goes back to in_stock ─────────
   async function approveReturn(returnId: string, approver: Profile): Promise<boolean> {
     try {
-      const ret = returns.find((r) => r.id === returnId)
-      if (!ret) { toast.error('Return not found.'); return false }
+      // Re-fetch the specific return from DB to guarantee we have the live return_reason,
+      // not a potentially stale value from local React state.
+      const { data: freshRet, error: fetchErr } = await withTimeout(
+        supabase.from('returns').select('*').eq('id', returnId).single(),
+        QUERY_TIMEOUT,
+      )
+      if (fetchErr || !freshRet) { toast.error('Return not found.'); return false }
+
+      const ret = freshRet
 
       const now = new Date().toISOString()
 
@@ -203,7 +210,12 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
       )
       if (phoneErr) throw phoneErr
 
-      const p = ret.phone as { model?: string; imei?: string; serial_number?: string } | null
+      const { data: phoneRow } = await withTimeout(
+        supabase.from('phones').select('model,imei,serial_number').eq('id', ret.phone_id).single(),
+        QUERY_TIMEOUT,
+      )
+      const p = phoneRow as { model?: string; imei?: string; serial_number?: string } | null
+
       await logActivity({
         actor_id:     approver.id,
         actor_name:   approver.full_name,
