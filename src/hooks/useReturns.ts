@@ -187,11 +187,16 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
       )
       if (retErr) throw retErr
 
-      // Phone back to in_stock, unassigned
+      // Damaged return reason → mark as damaged instead of back in stock
+      const isDamaged = /damaged|defective/i.test(String(ret.return_reason ?? ''))
+      const phoneStatus = isDamaged ? 'damaged' : 'in_stock'
+
       const { error: phoneErr } = await withTimeout(
         supabase.from('phones').update({
-          status:      'in_stock',
-          assigned_to: null,
+          status:      phoneStatus,
+          // Keep assigned_to when damaged so the agent can still see it on their dashboard.
+          // For in_stock returns, clear the assignment.
+          assigned_to: isDamaged ? ret.returned_by : null,
           assigned_at: null,
         }).eq('id', ret.phone_id),
         MUTATE_TIMEOUT,
@@ -215,10 +220,10 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
         ret.returned_by,
         'RETURN_APPROVED',
         'Return Approved',
-        `Your return request for ${p?.model ?? 'the phone'} was approved by ${approver.full_name}. The phone is back in stock.`,
+        `Your return request for ${p?.model ?? 'the phone'} was approved by ${approver.full_name}. ${isDamaged ? 'Phone marked as damaged.' : 'Phone is back in stock.'}`,
       )
 
-      toast.success('Return approved — phone is back in stock.')
+      toast.success(isDamaged ? 'Return approved — phone marked as damaged.' : 'Return approved — phone is back in stock.')
       await fetchReturns()
       return true
     } catch (err: unknown) {
