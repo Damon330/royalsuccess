@@ -13,7 +13,7 @@ import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
 import {
   MdPhoneAndroid, MdLogout, MdCheckCircle, MdUndo,
-  MdSell, MdWarning, MdBuild,
+  MdSell, MdWarning,
 } from 'react-icons/md'
 
 const STOCK_RETURN_REASONS = [
@@ -98,32 +98,24 @@ function PhoneCard({ phone, onSell, onReturn }: {
   const isAssigned = phone.status === 'assigned'
   const isSold     = phone.status === 'sold'
   const isReturned = phone.status === 'returned'
-  const isDamaged  = phone.status === 'damaged'
-
-  const borderClass = isDamaged  ? 'border-red-200'   :
-                      isReturned ? 'border-amber-200'  :
-                                   'border-brand-border'
-  const dimClass    = (isSold || isDamaged) ? 'opacity-70' : ''
 
   return (
-    <div className={`bg-white rounded-2xl border p-4 transition-all ${borderClass} ${dimClass}`}>
+    <div className={`bg-white rounded-2xl border p-4 transition-all ${
+      isReturned ? 'border-amber-200' : 'border-brand-border'
+    } ${isSold ? 'opacity-60' : ''}`}>
 
       {/* Phone info row */}
       <div className="flex items-start gap-3">
         <div className={`rounded-xl p-3 flex-shrink-0 ${
-          isSold     ? 'bg-gray-100'   :
-          isReturned ? 'bg-amber-50'   :
-          isDamaged  ? 'bg-red-50'     :
+          isSold     ? 'bg-gray-100'  :
+          isReturned ? 'bg-amber-50'  :
                        'bg-primary-pale'
         }`}>
-          {isDamaged
-            ? <MdBuild      className="w-5 h-5 text-red-400" />
-            : <MdPhoneAndroid className={`w-5 h-5 ${
-                isSold     ? 'text-gray-400'  :
-                isReturned ? 'text-amber-500' :
-                             'text-primary'
-              }`} />
-          }
+          <MdPhoneAndroid className={`w-5 h-5 ${
+            isSold     ? 'text-gray-400'  :
+            isReturned ? 'text-amber-500' :
+                         'text-primary'
+          }`} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-brand-text text-[15px] leading-snug">{phone.model}</p>
@@ -143,11 +135,6 @@ function PhoneCard({ phone, onSell, onReturn }: {
         {isReturned && (
           <span className="flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0">
             <MdUndo className="w-3.5 h-3.5" /> Pending
-          </span>
-        )}
-        {isDamaged && (
-          <span className="flex items-center gap-1 bg-red-100 text-red-700 text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0">
-            <MdBuild className="w-3.5 h-3.5" /> Damaged
           </span>
         )}
       </div>
@@ -180,14 +167,6 @@ function PhoneCard({ phone, onSell, onReturn }: {
         </div>
       )}
 
-      {/* Damaged notice */}
-      {isDamaged && (
-        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
-          <MdWarning className="w-4 h-4 text-red-500 flex-shrink-0" />
-          <p className="text-xs font-medium text-red-700">Approved as damaged — reported to admin</p>
-        </div>
-      )}
-
       {/* Sold date */}
       {isSold && phone.sold_at && (
         <p className="text-xs text-brand-muted text-center mt-3">
@@ -210,10 +189,9 @@ export default function AgentDashboard() {
 
   void markAsSold
 
-  const assigned  = phones.filter((p) => p.status === 'assigned')
-  const inReturn  = phones.filter((p) => p.status === 'returned')
-  const damaged   = phones.filter((p) => p.status === 'damaged')
-  const sold      = phones.filter((p) => p.status === 'sold')
+  const assigned = phones.filter((p) => p.status === 'assigned')
+  const inReturn = phones.filter((p) => p.status === 'returned')
+  const sold     = phones.filter((p) => p.status === 'sold')
 
   async function handleSaleConfirmed(form: SaleFormData) {
     if (!profile || !sellingPhone) return
@@ -255,7 +233,7 @@ export default function AgentDashboard() {
       <div className="px-4 pt-5 pb-24 max-w-lg mx-auto space-y-5">
 
         {/* Stats */}
-        <div className={`grid gap-3 grid-cols-2 ${(inReturn.length > 0 || damaged.length > 0) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+        <div className={`grid gap-3 ${inReturn.length > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div className="bg-white rounded-2xl border border-brand-border p-3 text-center">
             <p className="text-2xl font-extrabold text-primary">{assigned.length}</p>
             <p className="text-[11px] text-brand-muted mt-0.5 font-medium">Active</p>
@@ -264,22 +242,14 @@ export default function AgentDashboard() {
             <p className="text-2xl font-extrabold text-green-600">{sold.length}</p>
             <p className="text-[11px] text-brand-muted mt-0.5 font-medium">Sold</p>
           </div>
+          <div className="bg-white rounded-2xl border border-brand-border p-3 text-center">
+            <p className="text-2xl font-extrabold text-orange-500">{assigned.length}</p>
+            <p className="text-[11px] text-brand-muted mt-0.5 font-medium">Remaining</p>
+          </div>
           {inReturn.length > 0 && (
             <div className="bg-amber-50 rounded-2xl border border-amber-200 p-3 text-center">
               <p className="text-2xl font-extrabold text-amber-600">{inReturn.length}</p>
               <p className="text-[11px] text-amber-600 mt-0.5 font-medium">In Return</p>
-            </div>
-          )}
-          {damaged.length > 0 && (
-            <div className="bg-red-50 rounded-2xl border border-red-200 p-3 text-center">
-              <p className="text-2xl font-extrabold text-red-600">{damaged.length}</p>
-              <p className="text-[11px] text-red-600 mt-0.5 font-medium">Damaged</p>
-            </div>
-          )}
-          {inReturn.length === 0 && damaged.length === 0 && (
-            <div className="bg-white rounded-2xl border border-brand-border p-3 text-center">
-              <p className="text-2xl font-extrabold text-orange-500">{assigned.length}</p>
-              <p className="text-[11px] text-brand-muted mt-0.5 font-medium">Remaining</p>
             </div>
           )}
         </div>
@@ -319,20 +289,6 @@ export default function AgentDashboard() {
                 </h2>
                 <div className="space-y-3">
                   {inReturn.map((phone) => (
-                    <PhoneCard key={phone.id} phone={phone} onSell={setSellingPhone} onReturn={setReturningPhone} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Damaged phones */}
-            {damaged.length > 0 && (
-              <section>
-                <h2 className="text-sm font-bold text-red-600 uppercase tracking-wide mb-3">
-                  Damaged — {damaged.length}
-                </h2>
-                <div className="space-y-3">
-                  {damaged.map((phone) => (
                     <PhoneCard key={phone.id} phone={phone} onSell={setSellingPhone} onReturn={setReturningPhone} />
                   ))}
                 </div>
