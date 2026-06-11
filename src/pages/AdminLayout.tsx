@@ -6,6 +6,7 @@ import AdminInventory from '../components/admin/AdminInventory'
 import AdminAgents from '../components/admin/AdminAgents'
 import AdminAssignPhones from '../components/admin/AdminAssignPhones'
 import AdminReports from '../components/admin/AdminReports'
+import AdminInsights from '../components/admin/AdminInsights'
 import AdminReturns from '../components/admin/AdminReturns'
 import AdminReceipts from '../components/admin/AdminReceipts'
 import ActivityPage from './ActivityPage'
@@ -56,6 +57,7 @@ export default function AdminLayout() {
             <Route path="agents"    element={<AdminAgents />} />
             <Route path="assign"    element={<AdminAssignPhones />} />
             <Route path="reports"   element={<AdminReports />} />
+            <Route path="insights"  element={<AdminInsights />} />
             <Route path="returns"   element={<AdminReturns />} />
             <Route path="receipts"  element={<AdminReceipts />} />
             <Route path="activity"  element={<ActivityPage />} />

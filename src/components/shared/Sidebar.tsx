@@ -5,7 +5,7 @@ import { useProfiles } from '../../hooks/useProfiles'
 import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
-  MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt,
+  MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt, MdTrendingUp,
 } from 'react-icons/md'
 
 export default function Sidebar() {
@@ -37,6 +37,7 @@ export default function Sidebar() {
           { path: '/admin/inventory', label: 'Inventory',     icon: MdInventory2  },
           { path: '/admin/assign',    label: 'Assign Phones', icon: MdPhoneAndroid},
           { path: '/admin/reports',   label: 'Reports',       icon: MdBarChart    },
+          { path: '/admin/insights',  label: 'Insights',      icon: MdTrendingUp  },
         ].map(({ path, label, icon: Icon }) => (
           <NavLink key={path} to={path}
             className={({ isActive }) =>

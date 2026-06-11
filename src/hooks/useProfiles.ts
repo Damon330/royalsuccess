@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { playAlertSound, primeAudioContext } from '../lib/saleSound'
@@ -34,7 +34,10 @@ export function useProfiles() {
   const [profiles, setProfiles] = useState<Profile[]>(() => getCached() ?? [])
   const [loading,  setLoading]  = useState(() => getCached() === null)
   const [dbError,  setDbError]  = useState(false)
-  const isFirstLoad = useRef(true)
+  const isFirstLoad  = useRef(true)
+  // Unique channel name per hook instance — prevents Supabase from reusing an
+  // already-subscribed channel when multiple components call useProfiles() simultaneously.
+  const channelName = useMemo(() => `profiles-${Math.random().toString(36).slice(2)}`, [])
 
   const fetchProfiles = useCallback(async (force = false) => {
     const cached = getCached()
@@ -64,7 +67,7 @@ export function useProfiles() {
     // Realtime: pick up new signups immediately so admin sees pending users
     // without waiting for the 5-minute cache to expire.
     const channel = supabase
-      .channel('profiles-realtime')
+      .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
         const newProfile = payload.new as Profile
         // Update local state and cache
