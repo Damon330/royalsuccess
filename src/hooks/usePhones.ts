@@ -252,6 +252,7 @@ export function usePhones(assignedTo?: string) {
           assignee: assigneeName,
           models:   phoneModels.slice(0, 5).join(', '),
         },
+        team_lead_id: actor.role === 'team_lead' ? actor.id : null,
       })
 
       toast.success(`${phoneIds.length} phone(s) assigned.`)
@@ -302,6 +303,33 @@ export function usePhones(assignedTo?: string) {
     }
   }
 
+  // ── Update phone ────────────────────────────────────────────
+  async function updatePhone(phoneId: string, updates: { model?: string }, actor: Profile): Promise<boolean> {
+    try {
+      const { error } = await withTimeout(
+        supabase.from('phones').update(updates).eq('id', phoneId),
+        MUTATE_TIMEOUT,
+      )
+      if (error) { toast.error(`Update failed: ${error.message}`); return false }
+      setPhones((prev) => prev.map((p) => p.id === phoneId ? { ...p, ...updates } : p))
+      logActivity({
+        actor_id:     actor.id,
+        actor_name:   actor.full_name,
+        role:         actor.role,
+        action_type:  'STOCK_ADJUSTED',
+        entity_type:  'phone',
+        entity_id:    phoneId,
+        entity_label: updates.model ?? phoneId,
+        meta:         updates,
+      })
+      toast.success('Phone updated.')
+      return true
+    } catch {
+      toast.error('Failed to update phone.')
+      return false
+    }
+  }
+
   return {
     phones,
     loading,
@@ -310,8 +338,57 @@ export function usePhones(assignedTo?: string) {
     addPhone,
     addPhonesBulk,
     assignPhones,
+    unassignPhone,
+    updatePhone,
     importPhones,
     lookupByBarcode,
     refetch: fetchPhones,
+  }
+}
+
+// Standalone — safe to call from components that don't need the full hook.
+// Team lead: phone returns to their own stock (assigned_to = team lead).
+// Admin:     phone returns to warehouse (in_stock, assigned_to = null).
+export async function unassignPhone(phoneId: string, actor: Profile): Promise<boolean> {
+  try {
+    const { data: phone } = await supabase
+      .from('phones')
+      .select('model,imei')
+      .eq('id', phoneId)
+      .single()
+
+    const update =
+      actor.role === 'team_lead'
+        ? { assigned_to: actor.id, assigned_at: new Date().toISOString() }
+        : { status: 'in_stock' as const, assigned_to: null, assigned_at: null }
+
+    const { error } = await withTimeout(
+      supabase.from('phones').update(update).eq('id', phoneId),
+      12000,
+    )
+    if (error) throw error
+
+    logActivity({
+      actor_id:     actor.id,
+      actor_name:   actor.full_name,
+      role:         actor.role,
+      action_type:  'PHONE_UNASSIGNED',
+      entity_type:  'phone',
+      entity_id:    phoneId,
+      entity_label: (phone as { model?: string } | null)?.model ?? phoneId,
+      meta:         {
+        model: (phone as { model?: string } | null)?.model,
+        imei:  (phone as { imei?: string }  | null)?.imei,
+      },
+      team_lead_id: actor.role === 'team_lead' ? actor.id : null,
+    })
+
+    toast.success(
+      actor.role === 'team_lead' ? 'Phone returned to your stock.' : 'Phone unassigned.',
+    )
+    return true
+  } catch {
+    toast.error('Failed to unassign phone.')
+    return false
   }
 }

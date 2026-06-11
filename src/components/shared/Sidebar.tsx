@@ -1,24 +1,19 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
+import { useProfiles } from '../../hooks/useProfiles'
 import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
   MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt,
 } from 'react-icons/md'
 
-const staticNavItems = [
-  { path: '/admin/dashboard', label: 'Dashboard',    icon: MdDashboard  },
-  { path: '/admin/inventory', label: 'Inventory',    icon: MdInventory2 },
-  { path: '/admin/agents',    label: 'Agents',       icon: MdPeople     },
-  { path: '/admin/assign',    label: 'Assign Phones',icon: MdPhoneAndroid},
-  { path: '/admin/reports',   label: 'Reports',      icon: MdBarChart   },
-]
-
 export default function Sidebar() {
   const { signOut, profile } = useAuth()
   const navigate = useNavigate()
   const { pendingCount } = useReturns(undefined, 'sidebar')
+  const { pendingUsers } = useProfiles()
+  const pendingAgents = pendingUsers.length
 
   async function handleSignOut() {
     await signOut()
@@ -37,7 +32,12 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {staticNavItems.map(({ path, label, icon: Icon }) => (
+        {[
+          { path: '/admin/dashboard', label: 'Dashboard',     icon: MdDashboard   },
+          { path: '/admin/inventory', label: 'Inventory',     icon: MdInventory2  },
+          { path: '/admin/assign',    label: 'Assign Phones', icon: MdPhoneAndroid},
+          { path: '/admin/reports',   label: 'Reports',       icon: MdBarChart    },
+        ].map(({ path, label, icon: Icon }) => (
           <NavLink key={path} to={path}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150
@@ -48,6 +48,22 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        {/* Agents — with pending approval badge */}
+        <NavLink to="/admin/agents"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150
+            ${isActive ? 'bg-white/20 text-white shadow-sm' : 'text-white/70 hover:bg-white/10 hover:text-white'}`
+          }
+        >
+          <MdPeople className="w-5 h-5 flex-shrink-0" />
+          <span className="flex-1">Agents</span>
+          {pendingAgents > 0 && (
+            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+              {pendingAgents}
+            </span>
+          )}
+        </NavLink>
 
         {/* Returns — with pending badge */}
         <NavLink to="/admin/returns"

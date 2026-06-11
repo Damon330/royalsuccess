@@ -43,11 +43,16 @@ CREATE POLICY "profiles_teamlead_read_agents" ON public.profiles
 -- ── PHONES ───────────────────────────────────────────────────
 ALTER TABLE public.phones ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "phones_admin_all"              ON public.phones;
-DROP POLICY IF EXISTS "phones_agent_read_own"         ON public.phones;
-DROP POLICY IF EXISTS "phones_agent_update_own"       ON public.phones;
-DROP POLICY IF EXISTS "phones_teamlead_read_agents"   ON public.phones;
-DROP POLICY IF EXISTS "phones_teamlead_own"           ON public.phones;
+DROP POLICY IF EXISTS "phones_admin_all"                   ON public.phones;
+DROP POLICY IF EXISTS "phones_agent_read_own"              ON public.phones;
+DROP POLICY IF EXISTS "phones_agent_update_own"            ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_read_agents"        ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_update_agents"      ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_own"                ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_manage_assignments" ON public.phones;
+-- clean up old in-stock policies if present from a previous run
+DROP POLICY IF EXISTS "phones_teamlead_read_instock"       ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_assign"             ON public.phones;
 
 -- Admin: full access
 CREATE POLICY "phones_admin_all" ON public.phones
@@ -64,7 +69,7 @@ CREATE POLICY "phones_agent_update_own" ON public.phones
   USING (assigned_to = auth.uid())
   WITH CHECK (assigned_to = auth.uid());
 
--- Team leads: read + update their agents' phones
+-- Team leads: read their agents' phones
 CREATE POLICY "phones_teamlead_read_agents" ON public.phones
   FOR SELECT USING (
     assigned_to IN (
@@ -72,16 +77,31 @@ CREATE POLICY "phones_teamlead_read_agents" ON public.phones
     )
   );
 
-CREATE POLICY "phones_teamlead_update_agents" ON public.phones
-  FOR UPDATE USING (
-    assigned_to IN (
+-- Team leads: read + manage their own directly-assigned phones (their stock)
+CREATE POLICY "phones_teamlead_own" ON public.phones
+  FOR ALL USING (assigned_to = auth.uid());
+
+-- Team leads: move phones between their stock and their agents in both directions.
+--   USING:      current assigned_to is the team lead OR one of their agents
+--   WITH CHECK: new assigned_to is the team lead OR one of their agents
+-- This covers:
+--   • Reassign from team lead → agent  (USING: own phone, WITH CHECK: agent)
+--   • Move agent A → agent B           (USING: agent, WITH CHECK: agent)
+--   • Return agent → team lead         (USING: agent, WITH CHECK: own id)
+CREATE POLICY "phones_teamlead_manage_assignments" ON public.phones
+  FOR UPDATE
+  USING (
+    assigned_to = auth.uid()
+    OR assigned_to IN (
+      SELECT id FROM public.profiles WHERE team_lead_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    assigned_to = auth.uid()
+    OR assigned_to IN (
       SELECT id FROM public.profiles WHERE team_lead_id = auth.uid()
     )
   );
-
--- Team leads: manage their own assigned phones
-CREATE POLICY "phones_teamlead_own" ON public.phones
-  FOR ALL USING (assigned_to = auth.uid());
 
 
 -- ── ACTIVITY LOG ─────────────────────────────────────────────

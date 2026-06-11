@@ -1,29 +1,26 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
 import { useReturns } from '../../hooks/useReturns'
 import { useSaleReceipt } from '../../hooks/useSaleReceipt'
 import SaleConfirmationModal from '../shared/SaleConfirmationModal'
 import ReceiptSuccessScreen from '../shared/ReceiptSuccessScreen'
-import { supabase } from '../../lib/supabase'
-import { withTimeout } from '../../lib/withTimeout'
-import type { Profile, Phone, PhoneReturn, Receipt, SaleFormData } from '../../types'
+import type { Phone, PhoneReturn, Receipt, SaleFormData } from '../../types'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
 import Modal from '../shared/Modal'
 import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
 import {
-  MdPhoneAndroid, MdLogout, MdExpandMore, MdExpandLess,
-  MdWarning, MdHistory, MdUndo, MdCheckCircle, MdCancel,
+  MdPhoneAndroid, MdLogout, MdWarning, MdUndo, MdCheckCircle, MdCancel,
 } from 'react-icons/md'
 
 
 function RejectModal({ onConfirm, onClose }: {
-  onConfirm: (note: string) => Promise<void>; onClose: () => void
+  onConfirm: (note: string) => Promise<void>
+  onClose:   () => void
 }) {
-  const [note, setNote]     = useState('')
+  const [note,    setNote]    = useState('')
   const [loading, setLoading] = useState(false)
   async function handle() {
     if (!note.trim()) { toast.error('Rejection note is required.'); return }
@@ -45,18 +42,55 @@ function RejectModal({ onConfirm, onClose }: {
   )
 }
 
-interface AgentWithPhones { profile: Profile; phones: Phone[] }
+function TLReturnModal({ phone, onSubmit, onClose }: {
+  phone:    Phone
+  onSubmit: (reason: string, notes: string) => Promise<void>
+  onClose:  () => void
+}) {
+  const REASONS = ['Wrong model received', 'Phone damaged / defective', 'Excess stock', 'End of assignment period', 'Other'] as const
+  const [reason,  setReason]  = useState(REASONS[0] as string)
+  const [notes,   setNotes]   = useState('')
+  const [loading, setLoading] = useState(false)
+  async function handle() { setLoading(true); await onSubmit(reason, notes); setLoading(false); onClose() }
+  return (
+    <Modal isOpen onClose={onClose} title="Return Phone to Store">
+      <div className="space-y-4">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-xs text-amber-700 font-semibold mb-1">Returning assigned phone to warehouse</p>
+          <p className="font-semibold text-brand-text">{phone.model}</p>
+          {phone.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
+          <p className="text-xs font-mono text-brand-muted">SN: {phone.serial_number}</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-brand-text mb-1">Reason</label>
+          <select value={reason} onChange={(e) => setReason(e.target.value)}
+            className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-brand-text mb-1">
+            Notes <span className="text-brand-muted font-normal">(optional)</span>
+          </label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Details…" rows={3}
+            className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
+        </div>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
+          <Button onClick={handle} loading={loading} fullWidth>Submit Return</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 
 export default function TeamLeadDashboard() {
-  const navigate = useNavigate()
   const { profile, signOut } = useAuth()
-  const { phones: myPhones, loading: phonesLoading, dbError, markAsSold } = usePhones(profile?.id)
+  const { phones: myPhones, loading: phonesLoading, dbError } = usePhones(profile?.id)
   const { returns, approveReturn, rejectReturn, submitReturn } = useReturns()
   const { completeSale, loading: saleLoading } = useSaleReceipt()
 
-  const [agents,        setAgents]        = useState<AgentWithPhones[]>([])
-  const [agentsLoading, setAgentsLoading] = useState(true)
-  const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [sellingPhone,   setSellingPhone]   = useState<Phone | null>(null)
   const [returningPhone, setReturningPhone] = useState<Phone | null>(null)
   const [saleResult,     setSaleResult]     = useState<{ receipt: Receipt; pdfBlob: Blob } | null>(null)
@@ -64,29 +98,8 @@ export default function TeamLeadDashboard() {
   const [approving,      setApproving]      = useState<string | null>(null)
 
   const pendingReturns = returns.filter((r) => r.return_status === 'PENDING')
-
-  useEffect(() => {
-    if (!profile) return
-    async function loadAgents() {
-      setAgentsLoading(true)
-      try {
-        const { data: agentProfiles } = await withTimeout(
-          supabase.from('profiles').select('*').eq('team_lead_id', profile!.id).eq('status', 'active'),
-          8000,
-        )
-        if (!agentProfiles) return
-        const ids = agentProfiles.map((a: Profile) => a.id)
-        const { data: agentPhones } = ids.length > 0
-          ? await withTimeout(supabase.from('phones').select('*').in('assigned_to', ids), 8000)
-          : { data: [] }
-        setAgents(agentProfiles.map((a: Profile) => ({
-          profile: a,
-          phones:  (agentPhones ?? []).filter((ph: Phone) => ph.assigned_to === a.id),
-        })))
-      } catch { /* empty state */ } finally { setAgentsLoading(false) }
-    }
-    loadAgents()
-  }, [profile])
+  const mySold         = myPhones.filter((p) => p.status === 'sold').length
+  const myRemaining    = myPhones.filter((p) => p.status === 'assigned').length
 
   async function handleSaleConfirmed(form: SaleFormData) {
     if (!profile || !sellingPhone) return
@@ -97,8 +110,6 @@ export default function TeamLeadDashboard() {
     }
   }
 
-  void markAsSold // kept to avoid unused-import lint; replaced by completeSale
-
   async function handleApprove(ret: PhoneReturn) {
     if (!profile) return
     setApproving(ret.id)
@@ -106,32 +117,32 @@ export default function TeamLeadDashboard() {
     setApproving(null)
   }
 
-  const mySold      = myPhones.filter((p) => p.status === 'sold').length
-  const myRemaining = myPhones.filter((p) => p.status === 'assigned').length
-
   return (
     <div className="min-h-screen bg-brand-bg">
-      <header className="bg-primary text-white px-5 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-white/20 rounded-xl p-2"><MdPhoneAndroid className="w-5 h-5" /></div>
-          <div>
-            <p className="font-bold text-sm">Royal Success</p>
-            <p className="text-white/70 text-xs">Team Lead — {profile?.full_name}</p>
+
+      {/* Header */}
+      <header className="bg-primary text-white px-5 pt-safe-top pb-4 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 rounded-xl p-2">
+              <MdPhoneAndroid className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm">Royal Success</p>
+              <p className="text-white/70 text-xs">Team Lead — {profile?.full_name}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate('/teamlead/activity')}
-            className="relative bg-white/10 hover:bg-white/20 rounded-lg p-2 transition-colors">
-            <MdHistory className="w-5 h-5" />
-          </button>
-          <button onClick={() => { signOut(); toast('Signed out.') }}
-            className="bg-white/10 hover:bg-white/20 rounded-lg p-2 transition-colors">
+          <button
+            onClick={() => { signOut(); toast('Signed out.') }}
+            className="bg-white/10 hover:bg-white/20 rounded-xl p-3 transition-colors min-h-touch flex items-center justify-center"
+            aria-label="Sign out"
+          >
             <MdLogout className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto p-5 space-y-6">
+      <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
 
         {dbError && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
@@ -157,7 +168,7 @@ export default function TeamLeadDashboard() {
                 const p = ret.phone as { model?: string; imei?: string; serial_number?: string } | undefined
                 const r = ret.requester as { full_name?: string } | undefined
                 return (
-                  <div key={ret.id} className="bg-white rounded-xl border border-amber-200 p-4">
+                  <div key={ret.id} className="bg-white rounded-2xl border border-amber-200 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-brand-text">{p?.model ?? '—'}</p>
@@ -203,101 +214,58 @@ export default function TeamLeadDashboard() {
           {phonesLoading ? (
             <div className="flex justify-center py-8"><Spinner /></div>
           ) : myPhones.length === 0 ? (
-            <div className="bg-white rounded-xl border border-brand-border p-6 text-center text-brand-muted text-sm">
+            <div className="bg-white rounded-2xl border border-brand-border p-8 text-center text-brand-muted text-sm">
               No phones assigned to you yet.
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Stats row */}
               <div className="flex gap-3 mb-3">
                 {[
-                  { label: 'Assigned', value: myPhones.length, color: 'text-primary' },
-                  { label: 'Sold',     value: mySold,          color: 'text-green-600' },
-                  { label: 'Remaining',value: myRemaining,     color: 'text-orange-500' },
+                  { label: 'Assigned',  value: myPhones.length, color: 'text-primary' },
+                  { label: 'Sold',      value: mySold,          color: 'text-green-600' },
+                  { label: 'Remaining', value: myRemaining,     color: 'text-orange-500' },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="flex-1 bg-white rounded-xl border border-brand-border p-3 text-center">
+                  <div key={label} className="flex-1 bg-white rounded-2xl border border-brand-border p-3 text-center">
                     <p className={`text-2xl font-bold ${color}`}>{value}</p>
                     <p className="text-xs text-brand-muted">{label}</p>
                   </div>
                 ))}
               </div>
+
               {myPhones.map((phone) => (
-                <div key={phone.id} className={`bg-white rounded-xl border border-brand-border p-4 flex items-center justify-between ${phone.status !== 'assigned' ? 'opacity-60' : ''}`}>
-                  <div>
-                    <p className="text-sm font-semibold text-brand-text">{phone.model}</p>
-                    {phone.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
-                    <p className="text-xs font-mono text-brand-muted">SN: {phone.serial_number}</p>
+                <div
+                  key={phone.id}
+                  className={`bg-white rounded-2xl border border-brand-border p-4 flex items-center justify-between gap-3 ${
+                    phone.status !== 'assigned' ? 'opacity-60' : ''
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-brand-text truncate">{phone.model}</p>
+                    {phone.imei
+                      ? <p className="text-xs font-mono text-brand-muted truncate">IMEI: {phone.imei}</p>
+                      : <p className="text-xs font-mono text-brand-muted truncate">SN: {phone.serial_number}</p>
+                    }
                   </div>
-                  {phone.status === 'assigned'
-                    ? (
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="success" onClick={() => setSellingPhone(phone)}>Mark as Sold</Button>
-                        <button
-                          onClick={() => setReturningPhone(phone)}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-amber-50 hover:text-amber-700 text-brand-muted border border-brand-border hover:border-amber-300 rounded-lg text-xs font-medium transition-colors"
-                        >
-                          <MdUndo className="w-3.5 h-3.5" /> Return
-                        </button>
-                      </div>
-                    )
-                    : <Badge variant={phone.status === 'sold' ? 'green' : 'gray'}>{phone.status === 'sold' ? 'Sold' : phone.status}</Badge>
-                  }
+                  {phone.status === 'assigned' ? (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button size="sm" variant="success" onClick={() => setSellingPhone(phone)}>
+                        Sell
+                      </Button>
+                      <button
+                        onClick={() => setReturningPhone(phone)}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-amber-50 hover:text-amber-700 text-brand-muted border border-brand-border hover:border-amber-300 rounded-lg text-xs font-medium transition-colors"
+                      >
+                        <MdUndo className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Badge variant={phone.status === 'sold' ? 'green' : 'gray'}>
+                      {phone.status === 'sold' ? 'Sold' : phone.status}
+                    </Badge>
+                  )}
                 </div>
               ))}
-            </div>
-          )}
-        </section>
-
-        {/* ── My Agents ── */}
-        <section>
-          <h2 className="text-base font-bold text-brand-text mb-3">My Agents</h2>
-          {agentsLoading ? (
-            <div className="flex justify-center py-8"><Spinner /></div>
-          ) : agents.length === 0 ? (
-            <div className="bg-white rounded-xl border border-brand-border p-6 text-center text-brand-muted text-sm">No agents yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {agents.map(({ profile: agent, phones: aPhones }) => {
-                const sold = aPhones.filter((p) => p.status === 'sold').length
-                const isExpanded = expandedAgent === agent.id
-                return (
-                  <div key={agent.id} className="bg-white rounded-xl border border-brand-border overflow-hidden">
-                    <button
-                      onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
-                      className="w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="bg-primary rounded-full h-8 w-8 flex items-center justify-center text-white text-sm font-bold">
-                          {agent.full_name.charAt(0)}
-                        </div>
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-brand-text">{agent.full_name}</p>
-                          <p className="text-xs text-brand-muted">{sold} / {aPhones.length} sold</p>
-                        </div>
-                      </div>
-                      {isExpanded ? <MdExpandLess className="w-5 h-5 text-brand-muted" /> : <MdExpandMore className="w-5 h-5 text-brand-muted" />}
-                    </button>
-                    {isExpanded && (
-                      <div className="border-t border-brand-border divide-y divide-brand-border">
-                        {aPhones.length === 0
-                          ? <p className="px-4 py-3 text-sm text-brand-muted">No phones.</p>
-                          : aPhones.map((ph) => (
-                            <div key={ph.id} className={`px-4 py-3 flex items-center justify-between ${ph.status !== 'assigned' ? 'opacity-60' : ''}`}>
-                              <div>
-                                <p className="text-sm text-brand-text">{ph.model}</p>
-                                {ph.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {ph.imei}</p>}
-                                <p className="text-xs font-mono text-brand-muted">SN: {ph.serial_number}</p>
-                              </div>
-                              <Badge variant={ph.status === 'sold' ? 'green' : 'blue'}>
-                                {ph.status === 'sold' ? 'Sold' : 'Assigned'}
-                              </Badge>
-                            </div>
-                          ))
-                        }
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
             </div>
           )}
         </section>
@@ -340,43 +308,5 @@ export default function TeamLeadDashboard() {
         />
       )}
     </div>
-  )
-}
-
-function TLReturnModal({ phone, onSubmit, onClose }: {
-  phone: Phone; onSubmit: (reason: string, notes: string) => Promise<void>; onClose: () => void
-}) {
-  const REASONS = ['Wrong model received','Phone damaged / defective','Excess stock','End of assignment period','Other'] as const
-  const [reason,  setReason]  = useState(REASONS[0] as string)
-  const [notes,   setNotes]   = useState('')
-  const [loading, setLoading] = useState(false)
-  async function handle() { setLoading(true); await onSubmit(reason, notes); setLoading(false); onClose() }
-  return (
-    <Modal isOpen onClose={onClose} title="Return Phone to Store">
-      <div className="space-y-4">
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-xs text-amber-700 font-semibold mb-1">Returning assigned phone to warehouse</p>
-          <p className="font-semibold text-brand-text">{phone.model}</p>
-          {phone.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
-          <p className="text-xs font-mono text-brand-muted">SN: {phone.serial_number}</p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-brand-text mb-1">Reason</label>
-          <select value={reason} onChange={(e) => setReason(e.target.value)}
-            className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-            {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-brand-text mb-1">Notes <span className="text-brand-muted font-normal">(optional)</span></label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Details…" rows={3}
-            className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none" />
-        </div>
-        <div className="flex gap-3">
-          <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
-          <Button onClick={handle} loading={loading} fullWidth>Submit Return</Button>
-        </div>
-      </div>
-    </Modal>
   )
 }

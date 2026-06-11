@@ -18,8 +18,33 @@ const INV_PAGE_SIZE = 25
 import {
   MdAdd, MdQrCode2, MdWarning, MdRefresh, MdUploadFile,
   MdDownload, MdCheckCircle, MdQrCodeScanner, MdCameraAlt,
-  MdWifi, MdErrorOutline,
+  MdWifi, MdErrorOutline, MdEdit,
 } from 'react-icons/md'
+
+const PHONE_MODELS = [
+  'A05 (A055F/DS) 64GB/4GB',
+  'A06 (A065F/DS) 128GB/4GB',
+  'A06 (A065F/DS) 64GB/4GB',
+  'A06 5G (A066B/DS) 128GB/4GB',
+  'A06 5G (A066B/DS) 64GB/4GB',
+  'A07 (SM-A075F/DS) 128GB/4GB',
+  'A07 (SM-A075F/DS) 128GB/6GB',
+  'A07 (SM-A075F/DS) 64GB/4GB',
+  'A16 (A165F/DS) 128GB/4GB',
+  'A16 (A165F/DS) 128GB/6GB',
+  'A16 (A165F/DS) 256GB/8GB',
+  'A16 5G (A166P/DS) 128GB/4GB',
+  'A17 (A175F/DS) 128GB/4GB',
+  'A17 (A175F/DS) 128GB/6GB',
+  'A17 (A175F/DS) 256GB/8GB',
+  'A17 5G (A176B/DS) 128GB/4GB',
+  'A26 5G (A266B/DS) 128GB/6GB',
+  'A26 5G (A266B/DS) 256GB/8GB',
+  'A36 5G (A366B/DS) 128GB/6GB',
+  'A36 5G (A366B/DS) 256GB/8GB',
+  'A56 5G (A566B/DS) 128GB/8GB',
+  'A56 5G (A566B/DS) 256GB/8GB',
+] as const
 import type { Phone, PhoneStatus } from '../../types'
 
 const STATUS_VARIANT: Record<PhoneStatus, 'green' | 'blue' | 'gray' | 'yellow' | 'red'> = {
@@ -53,7 +78,7 @@ function ScanResultBanner({ phone, onClose }: { phone: Phone; onClose: () => voi
 
 export default function AdminInventory() {
   const { profile } = useAuth()
-  const { phones, loading, dbError, addPhone, addPhonesBulk, importPhones, lookupByBarcode, refetch } = usePhones()
+  const { phones, loading, dbError, addPhone, addPhonesBulk, importPhones, lookupByBarcode, updatePhone, refetch } = usePhones()
   const { profiles } = useProfiles()
 
   const [showAddModal,     setShowAddModal]     = useState(false)
@@ -74,11 +99,16 @@ export default function AdminInventory() {
   const [excelFileName, setExcelFileName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const [editingPhone,   setEditingPhone]   = useState<Phone | null>(null)
+  const [editModel,      setEditModel]      = useState('')
+  const [editSubmitting, setEditSubmitting] = useState(false)
+
   // ── Scan-tab state ──────────────────────────────────────────────────────
   const [scanStep,    setScanStep]    = useState<ScanStep>('scanning')
   const [scanCamTab,  setScanCamTab]  = useState<ScanCamTab>('hardware')
   const [scanManual,  setScanManual]  = useState('')
   const [lookingUp,   setLookingUp]   = useState(false)
+  const [lookupFailed, setLookupFailed] = useState(false)
   const scanVideoRef = useRef<HTMLVideoElement | null>(null)
 
   const scanTabEnabled = showAddModal && mode === 'scan' && scanStep === 'scanning'
@@ -87,6 +117,8 @@ export default function AdminInventory() {
     const trimmed = code.trim()
     setBarcode(trimmed)
     setScanManual('')
+    setLookupFailed(false)
+    setModel('')
     setScanStep('confirm')
 
     if (/^\d{15}$/.test(trimmed)) {
@@ -95,9 +127,18 @@ export default function AdminInventory() {
       const info = await lookupByIMEI(trimmed)
       if (info) {
         const fullModel = [info.manufacturer, info.model].filter(Boolean).join(' ')
-        if (fullModel) setModel(fullModel)
+        if (fullModel) {
+          setModel(fullModel)
+        } else {
+          setLookupFailed(true)
+        }
+      } else {
+        setLookupFailed(true)
       }
       setLookingUp(false)
+    } else {
+      // Barcode (not IMEI) — no auto-lookup, show dropdown to pick model
+      setLookupFailed(true)
     }
   }
 
@@ -143,6 +184,8 @@ export default function AdminInventory() {
     setScanManual('')
     setBarcode('')
     setImei('')
+    setModel('')
+    setLookupFailed(false)
   }
   // ── End scan-tab state ──────────────────────────────────────────────────
 
@@ -340,7 +383,7 @@ export default function AdminInventory() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-brand-border">
                   <tr>
-                    {['Model', 'Barcode / IMEI', 'Status', 'Holder', 'Added'].map((h) => (
+                    {['Model', 'Barcode / IMEI', 'Status', 'Holder', 'Added', ''].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -357,6 +400,15 @@ export default function AdminInventory() {
                       </td>
                       <td className="px-5 py-4 text-brand-muted">{getAssigneeName(phone.assigned_to)}</td>
                       <td className="px-5 py-4 text-brand-muted">{new Date(phone.created_at).toLocaleDateString()}</td>
+                      <td className="px-5 py-4">
+                        <button
+                          onClick={() => { setEditingPhone(phone); setEditModel(phone.model) }}
+                          className="text-brand-muted hover:text-primary transition-colors"
+                          title="Edit model"
+                        >
+                          <MdEdit className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
@@ -389,6 +441,61 @@ export default function AdminInventory() {
         onScan={handleScanResult}
         title="Scan / Lookup Phone"
       />
+
+      {/* Edit Phone Modal */}
+      {editingPhone && (
+        <Modal isOpen onClose={() => setEditingPhone(null)} title="Edit Phone">
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-brand-border rounded-lg p-3">
+              <p className="text-xs text-brand-muted">Current model</p>
+              <p className="font-semibold text-brand-text text-sm">{editingPhone.model}</p>
+              {(editingPhone.imei ?? editingPhone.barcode) && (
+                <p className="text-xs font-mono text-brand-muted mt-0.5">
+                  {editingPhone.imei ? `IMEI: ${editingPhone.imei}` : `Barcode: ${editingPhone.barcode}`}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-brand-text">Select Model</label>
+              <select
+                value={editModel}
+                onChange={(e) => setEditModel(e.target.value)}
+                className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              >
+                <option value="">— Pick from list —</option>
+                {PHONE_MODELS.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <p className="text-xs text-brand-muted">Or type a custom model name:</p>
+              <input
+                type="text"
+                value={editModel}
+                onChange={(e) => setEditModel(e.target.value)}
+                autoFocus
+                placeholder="e.g. Samsung A15 128GB/4GB"
+                className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setEditingPhone(null)} fullWidth>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!profile || !editModel.trim()) { toast.error('Enter a model name.'); return }
+                  setEditSubmitting(true)
+                  const ok = await updatePhone(editingPhone.id, { model: editModel.trim() }, profile)
+                  if (ok) setEditingPhone(null)
+                  setEditSubmitting(false)
+                }}
+                loading={editSubmitting}
+                fullWidth
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Add / Import Modal */}
       <Modal isOpen={showAddModal} onClose={resetModal} title="Add Phone(s) to Inventory">
@@ -595,30 +702,52 @@ export default function AdminInventory() {
                     </button>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-brand-text mb-1">
-                      Model Name
-                      {lookingUp && (
-                        <span className="ml-2 text-xs text-brand-muted font-normal animate-pulse">
-                          Looking up device…
-                        </span>
+                  {lookingUp ? (
+                    <div className="flex items-center gap-2 py-2 text-sm text-brand-muted animate-pulse">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      Looking up device from IMEI…
+                    </div>
+                  ) : lookupFailed ? (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-brand-text">Select Model</label>
+                      <select
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                      >
+                        <option value="">— Pick from list —</option>
+                        {PHONE_MODELS.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-brand-muted">Or type a custom model name:</p>
+                      <input
+                        type="text"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        placeholder="e.g. iPhone 15 Pro"
+                        autoFocus
+                        className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-brand-text mb-1">Model Name</label>
+                      <input
+                        type="text"
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        placeholder="e.g. iPhone 15 Pro"
+                        autoFocus
+                        className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {model && (
+                        <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                          <MdCheckCircle className="w-3.5 h-3.5" /> Auto-filled from IMEI — verify or edit
+                        </p>
                       )}
-                    </label>
-                    <input
-                      type="text"
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      placeholder={lookingUp ? 'Looking up…' : 'e.g. iPhone 15 Pro'}
-                      autoFocus={!lookingUp}
-                      disabled={lookingUp}
-                      className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50 disabled:text-brand-muted"
-                    />
-                    {!lookingUp && model && (
-                      <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                        <MdCheckCircle className="w-3.5 h-3.5" /> Auto-filled from IMEI — verify or edit
-                      </p>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                 </>
               )}
@@ -626,7 +755,7 @@ export default function AdminInventory() {
           )}
 
           {/* Footer buttons — hidden while scanning or looking up */}
-          {!(mode === 'scan' && (scanStep === 'scanning' || lookingUp)) && (
+          {!(mode === 'scan' && (scanStep === 'scanning' || lookingUp || (lookupFailed && !model.trim()))) && (
             <div className="flex gap-3 pt-1">
               <Button variant="secondary" onClick={resetModal} fullWidth>Cancel</Button>
               <Button onClick={handleAdd} loading={submitting} fullWidth>
