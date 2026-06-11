@@ -12,6 +12,7 @@ import Badge from '../shared/Badge'
 import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
 import { MdPhoneAndroid, MdLogout, MdCheckCircle, MdUndo } from 'react-icons/md'
+import NotificationBell from '../shared/NotificationBell'
 
 // Stock return reasons — agent returning an assigned phone back to the warehouse
 const STOCK_RETURN_REASONS = [
@@ -160,13 +161,16 @@ export default function AgentDashboard() {
             <p className="font-bold text-lg">{profile?.full_name}</p>
             <p className="text-white/70 text-xs">Agent Dashboard</p>
           </div>
-          <button
-            onClick={() => { signOut(); toast('Signed out.') }}
-            className="bg-white/10 hover:bg-white/20 rounded-xl p-3 transition-colors min-h-touch flex items-center justify-center"
-            aria-label="Sign out"
-          >
-            <MdLogout className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell userId={profile?.id} />
+            <button
+              onClick={() => { signOut(); toast('Signed out.') }}
+              className="bg-white/10 hover:bg-white/20 rounded-xl p-3 transition-colors min-h-touch flex items-center justify-center"
+              aria-label="Sign out"
+            >
+              <MdLogout className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 

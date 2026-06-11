@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
+import { sendNotification } from '../lib/sendNotification'
 import type { Phone, Profile } from '../types'
 import toast from 'react-hot-toast'
 
@@ -254,6 +255,14 @@ export function usePhones(assignedTo?: string) {
         },
         team_lead_id: actor.role === 'team_lead' ? actor.id : null,
       })
+
+      // Notify the assignee
+      sendNotification(
+        userId,
+        'PHONE_ASSIGNED',
+        `${phoneIds.length} Phone${phoneIds.length !== 1 ? 's' : ''} Assigned`,
+        `${phoneIds.length} phone(s) assigned to you by ${actor.full_name}: ${phoneModels.slice(0, 3).join(', ')}${phoneModels.length > 3 ? '…' : ''}`,
+      )
 
       toast.success(`${phoneIds.length} phone(s) assigned.`)
       return true

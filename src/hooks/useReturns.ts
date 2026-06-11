@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
+import { sendNotification } from '../lib/sendNotification'
 import type { PhoneReturn, ReturnReason, ReturnStatus, Profile } from '../types'
 import toast from 'react-hot-toast'
 
@@ -149,6 +150,16 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
         team_lead_id: actor.role === 'team_lead' ? actor.id : null,
       })
 
+      // Notify the team lead if this agent has one
+      if (actor.team_lead_id) {
+        sendNotification(
+          actor.team_lead_id,
+          'RETURN_REQUESTED',
+          'Return Request',
+          `${actor.full_name} submitted a return for ${phone.model}. Reason: ${reason}`,
+        )
+      }
+
       toast.success('Return request submitted — awaiting approval.')
       await fetchReturns()
       return true
@@ -199,6 +210,14 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
         meta:         { action: 'RETURN_APPROVED', return_id: returnId },
       })
 
+      // Notify the original requester
+      sendNotification(
+        ret.returned_by,
+        'RETURN_APPROVED',
+        'Return Approved',
+        `Your return request for ${p?.model ?? 'the phone'} was approved by ${approver.full_name}. The phone is back in stock.`,
+      )
+
       toast.success('Return approved — phone is back in stock.')
       await fetchReturns()
       return true
@@ -237,6 +256,14 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
         MUTATE_TIMEOUT,
       )
       if (phoneErr) throw phoneErr
+
+      // Notify the original requester
+      sendNotification(
+        ret.returned_by,
+        'RETURN_REJECTED',
+        'Return Rejected',
+        `Your return request was rejected by ${approver.full_name}.${rejectionNote.trim() ? ` Reason: ${rejectionNote.trim()}` : ''}`,
+      )
 
       toast.success('Return rejected — phone stays assigned.')
       await fetchReturns()
