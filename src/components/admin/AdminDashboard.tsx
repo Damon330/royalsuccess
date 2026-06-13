@@ -179,17 +179,23 @@ export default function AdminDashboard() {
         {/* Stats — HEAD queries, no row data */}
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <StatCard label="Total Phones" value={stats.total}
-            icon={<MdInventory2 className="w-6 h-6 text-primary" />} />
+            icon={<MdInventory2 className="w-6 h-6 text-primary" />}
+            borderColor="border-l-primary" valueColor="text-primary" />
           <StatCard label="In Stock" value={stats.in_stock}
-            icon={<MdStorefront className="w-6 h-6 text-blue-600" />} iconBg="bg-blue-50" />
+            icon={<MdStorefront className="w-6 h-6 text-blue-600" />}
+            iconBg="bg-blue-50" borderColor="border-l-blue-500" valueColor="text-blue-700" />
           <StatCard label="Out in Field" value={stats.in_field}
-            icon={<MdLocalShipping className="w-6 h-6 text-orange-500" />} iconBg="bg-orange-50" />
+            icon={<MdLocalShipping className="w-6 h-6 text-orange-500" />}
+            iconBg="bg-orange-50" borderColor="border-l-orange-400" valueColor="text-orange-600" />
           <StatCard label="Total Sold" value={stats.sold}
-            icon={<MdCheckCircle className="w-6 h-6 text-green-600" />} iconBg="bg-green-50" />
+            icon={<MdCheckCircle className="w-6 h-6 text-green-600" />}
+            iconBg="bg-green-50" borderColor="border-l-green-500" valueColor="text-green-700" />
           <StatCard label="Returned" value={stats.returned}
-            icon={<MdUndo className="w-6 h-6 text-yellow-600" />} iconBg="bg-yellow-50" />
+            icon={<MdUndo className="w-6 h-6 text-yellow-600" />}
+            iconBg="bg-yellow-50" borderColor="border-l-yellow-400" valueColor="text-yellow-700" />
           <StatCard label="Damaged" value={stats.damaged}
-            icon={<MdBuildCircle className="w-6 h-6 text-red-500" />} iconBg="bg-red-50" />
+            icon={<MdBuildCircle className="w-6 h-6 text-red-500" />}
+            iconBg="bg-red-50" borderColor="border-l-red-500" valueColor="text-red-600" />
         </div>
 
         {/* Stale Device Alerts */}

@@ -82,6 +82,60 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     }
   }
 
+  // ── Return phone to team lead (direct transfer, no approval) ──
+  async function returnToTeamLead(phoneId: string, teamLeadId: string, actor: Profile): Promise<boolean> {
+    if (mutatingIds.current.has(phoneId)) return false
+    mutatingIds.current.add(phoneId)
+
+    const phone = phones.find((p) => p.id === phoneId)
+    const now   = new Date().toISOString()
+
+    setPhones((prev) =>
+      prev.map((p) => p.id === phoneId ? { ...p, assigned_to: teamLeadId, assigned_at: now } : p)
+    )
+
+    try {
+      const { error } = await withTimeout(
+        supabase.from('phones')
+          .update({ status: 'assigned', assigned_to: teamLeadId, assigned_at: now })
+          .eq('id', phoneId)
+          .eq('assigned_to', actor.id),
+        MUTATE_TIMEOUT,
+      )
+      if (error) throw error
+
+      const label = phone ? `${phone.model} / ${phone.imei ?? phone.serial_number}` : phoneId
+      logActivity({
+        actor_id:     actor.id,
+        actor_name:   actor.full_name,
+        role:         actor.role,
+        action_type:  'PHONE_UNASSIGNED',
+        entity_type:  'phone',
+        entity_id:    phoneId,
+        entity_label: label,
+        meta:         { action: 'RETURNED_TO_TEAM_LEAD', team_lead_id: teamLeadId },
+        agent_id:     actor.id,
+        team_lead_id: teamLeadId,
+      })
+
+      sendNotification(
+        teamLeadId,
+        'PHONE_ASSIGNED',
+        'Phone Returned to Your Stock',
+        `${actor.full_name} returned ${phone?.model ?? 'a phone'} to your stock.`,
+      )
+
+      toast.success('Phone transferred to your team lead.')
+      return true
+    } catch {
+      toast.error('Failed to return phone to team lead.')
+      fetchPhones()
+      return false
+    } finally {
+      mutatingIds.current.delete(phoneId)
+    }
+  }
+
   // ── Mark as Sold ────────────────────────────────────────────
   async function markAsSold(phoneId: string, actor: Profile): Promise<boolean> {
     if (mutatingIds.current.has(phoneId)) return false
@@ -366,6 +420,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     loading,
     dbError,
     markAsSold,
+    returnToTeamLead,
     addPhone,
     addPhonesBulk,
     assignPhones,
