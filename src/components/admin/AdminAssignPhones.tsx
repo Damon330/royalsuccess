@@ -10,15 +10,16 @@ import { useAuth } from '../../hooks/useAuth'
 import toast from 'react-hot-toast'
 import {
   MdCheckBox, MdCheckBoxOutlineBlank, MdPhoneAndroid,
-  MdWarning, MdRefresh, MdQrCodeScanner,
+  MdWarning, MdRefresh, MdQrCodeScanner, MdSearch, MdPerson,
 } from 'react-icons/md'
 
 export default function AdminAssignPhones() {
-  const { phones, loading: phonesLoading, dbError: phonesDbError, assignPhones, lookupByBarcode, refetch: refetchPhones } = usePhones()
+  const { phones, loading: phonesLoading, dbError: phonesDbError, assignPhones, lookupByBarcode, refetch: refetchPhones } = usePhones(undefined, 'in_stock')
   const { profiles, loading: profilesLoading, dbError: profilesDbError } = useProfiles()
   const { profile: adminProfile } = useAuth()
 
   const [selectedUser,   setSelectedUser]   = useState('')
+  const [userSearch,     setUserSearch]     = useState('')
   const [selectedPhones, setSelectedPhones] = useState<string[]>([])
   const [assigning,      setAssigning]      = useState(false)
   const [showScanner,    setShowScanner]    = useState(false)
@@ -27,6 +28,12 @@ export default function AdminAssignPhones() {
   const inStockPhones = phones.filter((p) => p.status === 'in_stock')
   const activeUsers   = profiles.filter((p) => p.status === 'active' && p.role !== 'admin')
   const loading       = phonesLoading || profilesLoading
+
+  const filteredUsers = userSearch.trim()
+    ? activeUsers.filter((u) => u.full_name.toLowerCase().includes(userSearch.toLowerCase()))
+    : activeUsers
+
+  const selectedUserObj = activeUsers.find((u) => u.id === selectedUser)
 
   function togglePhone(id: string) {
     setSelectedPhones((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
@@ -55,7 +62,7 @@ export default function AdminAssignPhones() {
     setAssigning(true)
     const assignee = activeUsers.find((u) => u.id === selectedUser)
     const ok = await assignPhones(selectedPhones, selectedUser, adminProfile, assignee?.full_name ?? selectedUser)
-    if (ok) { setSelectedPhones([]); setSelectedUser('') }
+    if (ok) { setSelectedPhones([]); setSelectedUser(''); setUserSearch('') }
     setAssigning(false)
   }
 
@@ -80,21 +87,59 @@ export default function AdminAssignPhones() {
           </div>
         )}
 
-        {/* Step 1 */}
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-brand-text mb-3">1. Select Recipient</h2>
-          <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}
-            className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        {/* Step 1: Recipient */}
+        <div className="bg-white rounded-xl border border-brand-border shadow-sm p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-brand-text">1. Select Recipient</h2>
+
+          {/* Search */}
+          <div className="relative">
+            <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name…"
+              value={userSearch}
+              onChange={(e) => { setUserSearch(e.target.value); setSelectedUser('') }}
+              className="w-full border border-brand-border rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          {/* Select */}
+          <select
+            value={selectedUser}
+            onChange={(e) => setSelectedUser(e.target.value)}
+            className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
             <option value="">— Choose a team member —</option>
-            {activeUsers.map((u) => (
+            {filteredUsers.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name} ({u.role === 'team_lead' ? 'Team Lead' : 'Agent'})
               </option>
             ))}
           </select>
+
+          {userSearch && filteredUsers.length === 0 && (
+            <p className="text-xs text-brand-muted pl-1">No team members match "{userSearch}"</p>
+          )}
+
+          {/* Selected recipient chip */}
+          {selectedUserObj && (
+            <div className="flex items-center gap-2 bg-primary-pale border border-primary/20 rounded-lg px-3 py-2">
+              <MdPerson className="w-4 h-4 text-primary flex-shrink-0" />
+              <span className="text-sm font-medium text-primary">{selectedUserObj.full_name}</span>
+              <span className="text-xs text-primary/70">
+                ({selectedUserObj.role === 'team_lead' ? 'Team Lead' : 'Agent'})
+              </span>
+              <button
+                onClick={() => { setSelectedUser(''); setUserSearch('') }}
+                className="ml-auto text-primary/60 hover:text-primary text-xs font-medium"
+              >
+                ✕ Clear
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Step 2 */}
+        {/* Step 2: Phones */}
         <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-brand-text">
@@ -134,7 +179,7 @@ export default function AdminAssignPhones() {
                       : <MdCheckBoxOutlineBlank className="w-5 h-5 text-gray-400 flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-brand-text">{phone.model}</p>
-                      {phone.imei && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
+                      {phone.imei    && <p className="text-xs font-mono text-brand-muted">IMEI: {phone.imei}</p>}
                       {phone.barcode && <p className="text-xs font-mono text-brand-muted">Barcode: {phone.barcode}</p>}
                       <p className="text-xs font-mono text-brand-muted">SN: {phone.serial_number}</p>
                     </div>
@@ -150,7 +195,7 @@ export default function AdminAssignPhones() {
           <div className="bg-primary-pale border border-primary/20 rounded-xl p-4 flex items-center justify-between gap-4">
             <p className="text-sm text-primary font-medium">
               Assigning <strong>{selectedPhones.length}</strong> phone(s) to{' '}
-              <strong>{activeUsers.find((u) => u.id === selectedUser)?.full_name}</strong>
+              <strong>{selectedUserObj?.full_name}</strong>
             </p>
             <Button onClick={handleAssign} loading={assigning}>Confirm Assignment</Button>
           </div>

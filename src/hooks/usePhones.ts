@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 const QUERY_TIMEOUT  = 5000
 const MUTATE_TIMEOUT = 12000
 
-export function usePhones(assignedTo?: string) {
+export function usePhones(assignedTo?: string, statusFilter?: import('../types').PhoneStatus) {
   const [phones,  setPhones]  = useState<Phone[]>([])
   const [loading, setLoading] = useState(true)
   const [dbError, setDbError] = useState(false)
@@ -28,7 +28,8 @@ export function usePhones(assignedTo?: string) {
         .order('created_at', { ascending: false })
         .limit(500)
 
-      if (assignedTo) query = query.eq('assigned_to', assignedTo)
+      if (assignedTo)   query = query.eq('assigned_to', assignedTo)
+      if (statusFilter) query = query.eq('status', statusFilter)
 
       const { data, error } = await withTimeout(query, QUERY_TIMEOUT)
       if (error) throw error
@@ -39,13 +40,13 @@ export function usePhones(assignedTo?: string) {
     } finally {
       setLoading(false)
     }
-  }, [assignedTo])
+  }, [assignedTo, statusFilter])
 
   useEffect(() => {
     fetchPhones()
 
     const channel = supabase
-      .channel(`phones-${assignedTo ?? 'all'}`)
+      .channel(`phones-${assignedTo ?? 'all'}-${statusFilter ?? 'all'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'phones' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           // Remove any temp optimistic entry before adding the confirmed row
@@ -242,13 +243,25 @@ export function usePhones(assignedTo?: string) {
     )
 
     try {
-      const { error } = await withTimeout(
+      // .eq('status', 'in_stock') ensures another admin assigning the same phone
+      // concurrently won't succeed — the second UPDATE finds zero matching rows
+      const { data: assigned, error } = await withTimeout(
         supabase.from('phones')
           .update({ status: 'assigned', assigned_to: userId, assigned_at: now })
-          .in('id', phoneIds),
+          .in('id', phoneIds)
+          .eq('status', 'in_stock')
+          .select('id'),
         MUTATE_TIMEOUT,
       )
       if (error) { toast.error(`Assign failed: ${error.message}`); throw error }
+
+      const actuallyAssigned = assigned?.length ?? 0
+      if (actuallyAssigned < phoneIds.length) {
+        const skipped = phoneIds.length - actuallyAssigned
+        toast.error(`${skipped} phone(s) were already assigned by someone else and were skipped.`)
+        fetchPhones()
+        return false
+      }
 
       logActivity({
         actor_id:     actor.id,
