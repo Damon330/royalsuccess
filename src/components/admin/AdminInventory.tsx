@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { useQueryClient } from '@tanstack/react-query'
 import Header from '../shared/Header'
 import Button from '../shared/Button'
 import Badge from '../shared/Badge'
@@ -7,14 +8,13 @@ import Modal from '../shared/Modal'
 import ScannerModal from '../shared/ScannerModal'
 import Pagination from '../shared/Pagination'
 import { usePhones } from '../../hooks/usePhones'
+import { useInventoryPage, invalidateInventory, INVENTORY_PAGE_SIZE } from '../../hooks/useInventoryPage'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useAuth } from '../../hooks/useAuth'
 import { useBarcodeScan } from '../../hooks/useBarcodeScan'
 import { lookupByIMEI } from '../../lib/imeiLookup'
 import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
-
-const INV_PAGE_SIZE = 25
 import {
   MdAdd, MdQrCode2, MdWarning, MdRefresh, MdUploadFile,
   MdDownload, MdCheckCircle, MdQrCodeScanner, MdCameraAlt,
@@ -78,8 +78,9 @@ function ScanResultBanner({ phone, onClose }: { phone: Phone; onClose: () => voi
 
 export default function AdminInventory() {
   const { profile } = useAuth()
-  const { phones, loading, dbError, addPhone, addPhonesBulk, importPhones, lookupByBarcode, updatePhone, refetch } = usePhones()
+  const { addPhone, addPhonesBulk, importPhones, lookupByBarcode, updatePhone } = usePhones()
   const { profiles } = useProfiles()
+  const queryClient  = useQueryClient()
 
   const [showAddModal,     setShowAddModal]     = useState(false)
   const [showScannerModal, setShowScannerModal] = useState(false)
@@ -91,9 +92,11 @@ export default function AdminInventory() {
   const [imei,    setImei]   = useState('')
   const [bulkCount, setBulkCount] = useState('1')
   const [submitting,   setSubmitting]   = useState(false)
-  const [filter,    setFilter]    = useState<PhoneStatus | 'all'>('all')
-  const [search,    setSearch]    = useState('')
-  const [invPage,   setInvPage]   = useState(1)
+  const [filter,          setFilter]         = useState<PhoneStatus | 'all'>('all')
+  const [search,          setSearch]         = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [invPage,         setInvPage]        = useState(1)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [excelRows,     setExcelRows]     = useState<ExcelRow[]>([])
   const [excelFileName, setExcelFileName] = useState('')
@@ -110,6 +113,23 @@ export default function AdminInventory() {
   const [lookingUp,   setLookingUp]   = useState(false)
   const [lookupFailed, setLookupFailed] = useState(false)
   const scanVideoRef = useRef<HTMLVideoElement | null>(null)
+
+  const invFilter = {
+    status: filter !== 'all' ? filter : undefined,
+    search: debouncedSearch || undefined,
+  }
+  const {
+    data:       invData,
+    isLoading:  invFirstLoad,
+    isFetching: invFetching,
+    isError:    invHasError,
+    error:      invErrorObj,
+    refetch:    refetchInv,
+  } = useInventoryPage(invPage, invFilter)
+
+  const invPhones     = invData?.phones    ?? []
+  const invTotalPages = invData?.totalPages ?? 1
+  const invTotalCount = invData?.totalCount ?? 0
 
   const scanTabEnabled = showAddModal && mode === 'scan' && scanStep === 'scanning'
 
@@ -188,19 +208,6 @@ export default function AdminInventory() {
     setLookupFailed(false)
   }
   // ── End scan-tab state ──────────────────────────────────────────────────
-
-  const filtered = phones.filter((p) => {
-    const matchStatus = filter === 'all' || p.status === filter
-    const matchSearch = !search ||
-      p.model.toLowerCase().includes(search.toLowerCase()) ||
-      p.serial_number.toLowerCase().includes(search.toLowerCase()) ||
-      (p.imei    ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode ?? '').toLowerCase().includes(search.toLowerCase())
-    return matchStatus && matchSearch
-  })
-
-  const invTotalPages = Math.max(1, Math.ceil(filtered.length / INV_PAGE_SIZE))
-  const paginated     = filtered.slice((invPage - 1) * INV_PAGE_SIZE, invPage * INV_PAGE_SIZE)
 
   function getAssigneeName(assignedTo: string | null) {
     if (!assignedTo) return '—'
@@ -295,9 +302,9 @@ export default function AdminInventory() {
     }
 
     if (ok) {
+      invalidateInventory(queryClient)
       toast.success(mode === 'excel' ? `${excelRows.length} phone(s) imported.` : 'Phone added to inventory.')
       if (mode === 'scan') {
-        // Stay in scan mode so they can scan the next phone
         setModel('')
         resetScanTab()
       } else {
@@ -327,16 +334,16 @@ export default function AdminInventory() {
       <Header title="Inventory" />
       <div className="p-6 space-y-5">
 
-        {dbError && (
+        {invHasError && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
               <p className="text-xs text-amber-700 mt-0.5">
-                Go to <strong>supabase.com</strong> → resume project → Refresh.
+                {(invErrorObj as Error)?.message ?? 'Go to supabase.com → resume project → Refresh.'}
               </p>
             </div>
-            <button onClick={refetch}
+            <button onClick={() => refetchInv()}
               className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
               <MdRefresh className="w-4 h-4" /> Refresh
             </button>
@@ -361,7 +368,13 @@ export default function AdminInventory() {
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <input type="text" placeholder="Search model, SN, IMEI or barcode…" value={search}
-              onChange={(e) => { setSearch(e.target.value); setInvPage(1) }}
+              onChange={(e) => {
+                const val = e.target.value
+                setSearch(val)
+                setInvPage(1)
+                if (searchTimer.current) clearTimeout(searchTimer.current)
+                searchTimer.current = setTimeout(() => setDebouncedSearch(val), 400)
+              }}
               className="border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1 sm:w-64" />
             <button onClick={() => setShowScannerModal(true)} title="Scan IMEI / barcode"
               className="flex items-center gap-1.5 border border-brand-border bg-white hover:bg-gray-50 text-brand-text px-3 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -376,10 +389,15 @@ export default function AdminInventory() {
 
         {/* Table */}
         <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
-          {loading ? (
+          {invFirstLoad ? (
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : (
             <div className="overflow-x-auto">
+              {invFetching && !invFirstLoad && (
+                <div className="px-5 py-2 text-xs text-brand-muted flex items-center gap-1.5 border-b border-brand-border">
+                  <Spinner size="sm" /> Loading…
+                </div>
+              )}
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-brand-border">
                   <tr>
@@ -389,7 +407,7 @@ export default function AdminInventory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border">
-                  {paginated.map((phone) => (
+                  {invPhones.map((phone) => (
                     <tr key={phone.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-5 py-4 font-medium text-brand-text">{phone.model}</td>
                       <td className="px-5 py-4 font-mono text-xs text-brand-muted">
@@ -411,11 +429,11 @@ export default function AdminInventory() {
                       </td>
                     </tr>
                   ))}
-                  {filtered.length === 0 && (
+                  {invTotalCount === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-brand-muted">
+                      <td colSpan={6} className="px-5 py-12 text-center text-brand-muted">
                         <MdQrCode2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                        {phones.length === 0 ? 'No phones yet.' : 'No phones match your filter.'}
+                        {filter === 'all' && !debouncedSearch ? 'No phones yet.' : 'No phones match your filter.'}
                       </td>
                     </tr>
                   )}
@@ -425,8 +443,8 @@ export default function AdminInventory() {
               <Pagination
                 page={invPage}
                 totalPages={invTotalPages}
-                totalCount={filtered.length}
-                pageSize={INV_PAGE_SIZE}
+                totalCount={invTotalCount}
+                pageSize={INVENTORY_PAGE_SIZE}
                 onPageChange={setInvPage}
               />
             </div>
@@ -484,7 +502,7 @@ export default function AdminInventory() {
                   if (!profile || !editModel.trim()) { toast.error('Enter a model name.'); return }
                   setEditSubmitting(true)
                   const ok = await updatePhone(editingPhone.id, { model: editModel.trim() }, profile)
-                  if (ok) setEditingPhone(null)
+                  if (ok) { setEditingPhone(null); invalidateInventory(queryClient) }
                   setEditSubmitting(false)
                 }}
                 loading={editSubmitting}

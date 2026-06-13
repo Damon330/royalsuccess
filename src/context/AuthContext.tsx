@@ -101,8 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(s)
         try {
           if (s) {
+            try { sessionStorage.setItem('rs-uid', s.user.id) } catch { /* ignore */ }
             await fetchProfile(s.user.id, s.user.email)
           } else {
+            try { sessionStorage.removeItem('rs-uid') } catch { /* ignore */ }
             setProfile(null)
           }
         } catch {
