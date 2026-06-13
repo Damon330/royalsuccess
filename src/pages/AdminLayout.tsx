@@ -10,6 +10,7 @@ import AdminInsights from '../components/admin/AdminInsights'
 import AdminReturns from '../components/admin/AdminReturns'
 import AdminReceipts from '../components/admin/AdminReceipts'
 import ActivityPage from './ActivityPage'
+import PayrollPage from '../components/admin/payroll/PayrollPage'
 
 // Catches rendering errors in any admin page so the layout never goes blank
 class PageErrorBoundary extends Component<
@@ -61,6 +62,7 @@ export default function AdminLayout() {
             <Route path="returns"   element={<AdminReturns />} />
             <Route path="receipts"  element={<AdminReceipts />} />
             <Route path="activity"  element={<ActivityPage />} />
+            <Route path="payroll"   element={<PayrollPage />} />
             <Route path="*"         element={<Navigate to="dashboard" replace />} />
           </Routes>
         </PageErrorBoundary>
