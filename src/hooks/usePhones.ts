@@ -3,10 +3,11 @@ import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
 import { sendNotification } from '../lib/sendNotification'
+import { checkRateLimit, RATE_LIMITS } from '../lib/rateLimit'
 import type { Phone, Profile } from '../types'
 import toast from 'react-hot-toast'
 
-const QUERY_TIMEOUT  = 8000
+const QUERY_TIMEOUT  = 5000
 const MUTATE_TIMEOUT = 12000
 
 export function usePhones(assignedTo?: string) {
@@ -83,6 +84,10 @@ export function usePhones(assignedTo?: string) {
   // ── Mark as Sold ────────────────────────────────────────────
   async function markAsSold(phoneId: string, actor: Profile): Promise<boolean> {
     if (mutatingIds.current.has(phoneId)) return false
+    if (!checkRateLimit({ key: `sale-${actor.id}`, ...RATE_LIMITS.saleRecord })) {
+      toast.error('Slow down — too many sale actions. Try again shortly.')
+      return false
+    }
     mutatingIds.current.add(phoneId)
 
     const phone = phones.find((p) => p.id === phoneId)
@@ -210,6 +215,10 @@ export function usePhones(assignedTo?: string) {
     actor:        Profile,
     assigneeName: string,
   ): Promise<boolean> {
+    if (!checkRateLimit({ key: `assign-${actor.id}`, ...RATE_LIMITS.phoneAssign })) {
+      toast.error('Too many assignment actions. Wait a moment before assigning again.')
+      return false
+    }
     // Guard: block assigning phones already mid-mutation
     const busy = phoneIds.filter((id) => mutatingIds.current.has(id))
     if (busy.length) {

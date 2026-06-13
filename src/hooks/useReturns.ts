@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
 import { sendNotification } from '../lib/sendNotification'
+import { checkRateLimit, RATE_LIMITS } from '../lib/rateLimit'
 import type { PhoneReturn, ReturnReason, ReturnStatus, Profile } from '../types'
 import toast from 'react-hot-toast'
 
@@ -105,6 +106,10 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
     reason:  string,
     notes:   string,
   ): Promise<boolean> {
+    if (!checkRateLimit({ key: `return-${actor.id}`, ...RATE_LIMITS.returnSubmit })) {
+      toast.error('Too many return requests. Please wait before submitting another.')
+      return false
+    }
     try {
       // Verify phone is still assigned to this user
       const { data: phone } = await withTimeout(
