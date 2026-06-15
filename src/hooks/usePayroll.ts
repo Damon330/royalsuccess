@@ -133,11 +133,17 @@ export function usePayroll() {
 
   async function upsertConfig(data: ConfigFormData, actor: Profile): Promise<boolean> {
     try {
+      const now      = new Date().toISOString()
+      // Determine whether this is an INSERT or UPDATE by matching on employee_id
+      // (null == null in JS, so this correctly handles the global-default case too)
+      const existing = configs.find((c) => c.employee_id === data.employee_id)
       const { error } = await withTimeout(
-        supabase.from('payroll_configs').upsert(
-          { ...data, updated_at: new Date().toISOString() },
-          { onConflict: 'employee_id' },
-        ),
+        existing
+          ? supabase.from('payroll_configs')
+              .update({ ...data, updated_at: now })
+              .eq('id', existing.id)
+          : supabase.from('payroll_configs')
+              .insert({ ...data, updated_at: now }),
         TIMEOUT,
       )
       if (error) throw error
