@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
 CREATE TABLE IF NOT EXISTS payroll_entries (
   id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   run_id              uuid        NOT NULL REFERENCES payroll_runs(id) ON DELETE CASCADE,
-  employee_id         uuid        NOT NULL REFERENCES profiles(id) ON DELETE SET NULL,
+  employee_id         uuid        REFERENCES profiles(id) ON DELETE SET NULL,
   -- Snapshot fields — captured at generation time so edits don't affect past runs
   employee_name       text        NOT NULL,
   employee_role       text        NOT NULL,
@@ -107,11 +107,50 @@ ALTER TABLE payroll_targets  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll_runs     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payroll_entries  ENABLE ROW LEVEL SECURITY;
 
--- Admin full access (identified by JWT email matching env var)
-CREATE POLICY "admin_all_payroll_configs"  ON payroll_configs  FOR ALL USING (auth.email() = current_setting('app.admin_email', true));
-CREATE POLICY "admin_all_payroll_targets"  ON payroll_targets  FOR ALL USING (auth.email() = current_setting('app.admin_email', true));
-CREATE POLICY "admin_all_payroll_runs"     ON payroll_runs     FOR ALL USING (auth.email() = current_setting('app.admin_email', true));
-CREATE POLICY "admin_all_payroll_entries"  ON payroll_entries  FOR ALL USING (auth.email() = current_setting('app.admin_email', true));
+-- Admin full access (JWT email check — must match fix-all-rls.sql pattern)
+CREATE POLICY "admin_all_payroll_configs" ON payroll_configs
+  FOR ALL
+  USING (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  )
+  WITH CHECK (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  );
+
+CREATE POLICY "admin_all_payroll_targets" ON payroll_targets
+  FOR ALL
+  USING (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  )
+  WITH CHECK (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  );
+
+CREATE POLICY "admin_all_payroll_runs" ON payroll_runs
+  FOR ALL
+  USING (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  )
+  WITH CHECK (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  );
+
+CREATE POLICY "admin_all_payroll_entries" ON payroll_entries
+  FOR ALL
+  USING (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  )
+  WITH CHECK (
+    auth.jwt() ->> 'email' = current_setting('app.admin_email', true)
+    OR auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+  );
 
 -- Employees can read their own payroll entry (view their own pay stub)
 CREATE POLICY "employee_read_own_entry" ON payroll_entries

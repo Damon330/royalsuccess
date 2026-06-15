@@ -30,8 +30,9 @@ const DEFAULT_FORM: ConfigFormData = {
   notes:             null,
 }
 
-function ConfigModal({ initial, onSave, onClose, profiles }: {
+function ConfigModal({ initial, isEdit, onSave, onClose, profiles }: {
   initial:  ConfigFormData
+  isEdit:   boolean
   onSave:   (data: ConfigFormData) => Promise<boolean>
   onClose:  () => void
   profiles: { id: string; full_name: string; role: string }[]
@@ -58,7 +59,7 @@ function ConfigModal({ initial, onSave, onClose, profiles }: {
   }
 
   return (
-    <Modal isOpen onClose={onClose} title={initial.employee_id ? 'Edit Pay Rule' : 'New Pay Rule'}>
+    <Modal isOpen onClose={onClose} title={isEdit ? 'Edit Pay Rule' : 'New Pay Rule'}>
       <div className="space-y-4">
 
         {/* Scope */}
@@ -168,7 +169,7 @@ function ConfigModal({ initial, onSave, onClose, profiles }: {
 export default function PayrollRules({ configs, loading, onUpsert, onDelete }: Props) {
   const { profile } = useAuth()
   const { profiles } = useProfiles()
-  const [modal,    setModal]    = useState<ConfigFormData | null>(null)
+  const [modal,    setModal]    = useState<{ data: ConfigFormData; isEdit: boolean } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   const activeProfiles = profiles.filter((p) => p.role !== 'admin' && p.status === 'active')
@@ -196,7 +197,7 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
           Define base salary and commission for each employee. Employees without a specific
           rule inherit the global default.
         </p>
-        <Button onClick={() => setModal(DEFAULT_FORM)} size="sm">
+        <Button onClick={() => setModal({ data: DEFAULT_FORM, isEdit: false })} size="sm">
           <MdAdd className="w-4 h-4" /> Add Rule
         </Button>
       </div>
@@ -226,12 +227,15 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
                 <div className="flex gap-2 flex-shrink-0">
                   <button
                     onClick={() => setModal({
-                      employee_id:       globalConfig.employee_id,
-                      base_salary:       globalConfig.base_salary,
-                      payment_frequency: globalConfig.payment_frequency,
-                      commission_mode:   globalConfig.commission_mode,
-                      commission_value:  globalConfig.commission_value,
-                      notes:             globalConfig.notes,
+                      data: {
+                        employee_id:       globalConfig.employee_id,
+                        base_salary:       globalConfig.base_salary,
+                        payment_frequency: globalConfig.payment_frequency,
+                        commission_mode:   globalConfig.commission_mode,
+                        commission_value:  globalConfig.commission_value,
+                        notes:             globalConfig.notes,
+                      },
+                      isEdit: true,
                     })}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-primary bg-primary-pale hover:bg-primary/15 transition-colors"
                   >
@@ -256,7 +260,7 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
                   </p>
                 </div>
                 <button
-                  onClick={() => setModal(DEFAULT_FORM)}
+                  onClick={() => setModal({ data: DEFAULT_FORM, isEdit: false })}
                   className="flex-shrink-0 text-xs font-semibold text-amber-700 bg-amber-200 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Add Default
@@ -314,12 +318,15 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
                           <div className="flex gap-2 justify-end">
                             <button
                               onClick={() => setModal({
-                                employee_id:       c.employee_id,
-                                base_salary:       c.base_salary,
-                                payment_frequency: c.payment_frequency,
-                                commission_mode:   c.commission_mode,
-                                commission_value:  c.commission_value,
-                                notes:             c.notes,
+                                data: {
+                                  employee_id:       c.employee_id,
+                                  base_salary:       c.base_salary,
+                                  payment_frequency: c.payment_frequency,
+                                  commission_mode:   c.commission_mode,
+                                  commission_value:  c.commission_value,
+                                  notes:             c.notes,
+                                },
+                                isEdit: true,
                               })}
                               className="p-1.5 rounded-lg text-primary hover:bg-primary-pale transition-colors"
                             >
@@ -346,7 +353,8 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
 
       {modal !== null && profile && (
         <ConfigModal
-          initial={modal}
+          initial={modal.data}
+          isEdit={modal.isEdit}
           profiles={activeProfiles}
           onSave={(data) => onUpsert(data)}
           onClose={() => setModal(null)}
