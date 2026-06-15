@@ -59,10 +59,11 @@ html.dark {
 
   /* Base input */
   .input-base {
-    @apply w-full bg-brand-surface border border-brand-border rounded-inner
+    @apply w-full bg-brand-surface border border-brand-border
            px-4 py-3 text-sm text-brand-text placeholder:text-brand-muted
            focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50
            transition-all duration-150;
+    border-radius: 12px;
   }
 
   /* Soft scrollbar */
