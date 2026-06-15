@@ -2,78 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Theme tokens ────────────────────────────────────────────────────────── */
+/* ── Theme tokens ──────────────────────────────────────────────────────────── */
 :root {
-  --color-bg:      #F3F4F6;
+  /* Light mode — green-tinted like eCommUIUX light */
+  --color-bg:      #EEF4EE;
   --color-surface: #FFFFFF;
-  --color-border:  #E5E7EB;
-  --color-text:    #111827;
-  --color-muted:   #6B7280;
+  --color-border:  #D0E4D0;
+  --color-text:    #1A2E1A;
+  --color-muted:   #547054;
+  --color-sidebar: #E4EDE4;
 }
 
 html.dark {
-  --color-bg:      #0B1120;
-  --color-surface: #141D2F;
-  --color-border:  #1F2D45;
-  --color-text:    #E2E8F0;
-  --color-muted:   #64748B;
+  /* Dark mode — near-black green like eCommUIUX dark */
+  --color-bg:      #0C1A0C;
+  --color-surface: #111F11;
+  --color-border:  #1E381E;
+  --color-text:    #DFF0DF;
+  --color-muted:   #6A9B6A;
+  --color-sidebar: #0A180A;
 }
 
+/* ── Base ──────────────────────────────────────────────────────────────────── */
 @layer base {
   * { box-sizing: border-box; }
-
   html { scroll-behavior: smooth; }
 
   body {
-    @apply bg-brand-bg text-brand-text;
+    @apply bg-brand-bg text-brand-text font-sans;
     -webkit-tap-highlight-color: transparent;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
-  /* Focus ring */
   :focus-visible {
     outline: 2px solid #0F4C35;
     outline-offset: 2px;
   }
 }
 
+/* ── Components ────────────────────────────────────────────────────────────── */
 @layer components {
-  /* Safe area insets */
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
   .safe-top    { padding-top:    env(safe-area-inset-top);    }
 
-  /* Card base */
-  .card {
-    @apply bg-brand-surface border border-brand-border rounded-2xl;
-    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.07), 0 1px 2px -1px rgba(0,0,0,0.07);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
-  }
-  .card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.08);
-  }
-
   /* Glass effect for header */
   .glass {
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+  }
+
+  /* Reusable input */
+  .input-base {
+    @apply w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm
+           text-brand-text placeholder:text-brand-muted
+           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
+           transition-all duration-150;
   }
 
   /* Scrollbar */
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { @apply bg-gray-300 dark:bg-slate-600 rounded-full; }
+  ::-webkit-scrollbar-thumb  { @apply bg-brand-border rounded-full; }
 
-  /* Input base */
-  .input-base {
-    @apply w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text
-           placeholder:text-brand-muted
-           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
-           transition-all duration-150;
+  /* Card base */
+  .card {
+    @apply bg-brand-surface border border-brand-border rounded-2xl;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.06);
+    transition: box-shadow 0.2s ease;
   }
-
-  /* Sold phone fade */
-  .phone-sold { @apply opacity-60; }
+  .card:hover {
+    box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05);
+  }
 }
 
-/* Smooth iOS scrolling */
-.scroll-touch { -webkit-overflow-scrolling: touch; }
+/* Gradient text utility (for welcome name) */
+.text-gradient-green {
+  background: linear-gradient(135deg, #2ECC71 0%, #0F4C35 50%, #4CAF82 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.dark .text-gradient-green {
+  background: linear-gradient(135deg, #4CAF82 0%, #2ECC71 50%, #86EFAC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

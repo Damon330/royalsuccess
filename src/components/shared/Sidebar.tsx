@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
 import { useProfiles } from '../../hooks/useProfiles'
@@ -10,10 +11,10 @@ import {
 } from 'react-icons/md'
 
 interface NavItem {
-  path:    string
-  label:   string
-  Icon:    React.ElementType
-  badge?:  number
+  path:   string
+  label:  string
+  Icon:   React.ElementType
+  badge?: number
 }
 
 interface NavGroup {
@@ -26,19 +27,25 @@ function SideNavLink({ path, label, Icon, badge }: NavItem) {
     <NavLink
       to={path}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+        `relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
           isActive
-            ? 'bg-white text-primary font-semibold shadow-sm'
-            : 'text-white/65 hover:bg-white/10 hover:text-white'
+            ? 'bg-primary text-white shadow-pill'
+            : 'text-brand-muted hover:bg-primary/10 dark:hover:bg-primary/20 hover:text-brand-text dark:hover:text-brand-text'
         }`
       }
     >
-      <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-      <span className="flex-1 truncate">{label}</span>
-      {badge !== undefined && badge > 0 && (
-        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center tabular-nums leading-tight">
-          {badge}
-        </span>
+      {({ isActive }) => (
+        <>
+          <Icon className={`w-[18px] h-[18px] flex-shrink-0 transition-transform duration-150 ${isActive ? 'scale-110' : 'group-hover:scale-105'}`} />
+          <span className="flex-1 truncate">{label}</span>
+          {badge !== undefined && badge > 0 && (
+            <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center tabular-nums leading-tight ${
+              isActive ? 'bg-white/30 text-white' : 'bg-danger text-white'
+            }`}>
+              {badge}
+            </span>
+          )}
+        </>
       )}
     </NavLink>
   )
@@ -72,15 +79,15 @@ export default function Sidebar() {
       items: [
         { path: '/admin/inventory', label: 'Inventory',     Icon: MdInventory2   },
         { path: '/admin/assign',    label: 'Assign Phones', Icon: MdPhoneAndroid },
-        { path: '/admin/returns',   label: 'Returns',       Icon: MdUndo,    badge: pendingCount   },
-        { path: '/admin/receipts',  label: 'Receipts',      Icon: MdReceipt  },
+        { path: '/admin/returns',   label: 'Returns',       Icon: MdUndo,   badge: pendingCount   },
+        { path: '/admin/receipts',  label: 'Receipts',      Icon: MdReceipt },
       ],
     },
     {
       label: 'Analytics',
       items: [
-        { path: '/admin/reports',  label: 'Reports',  Icon: MdBarChart   },
-        { path: '/admin/insights', label: 'Insights', Icon: MdTrendingUp },
+        { path: '/admin/reports',  label: 'Reports',  Icon: MdBarChart    },
+        { path: '/admin/insights', label: 'Insights', Icon: MdTrendingUp  },
         { path: '/admin/payroll',  label: 'Payroll',  Icon: MdAttachMoney },
       ],
     },
@@ -101,24 +108,30 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 h-full bg-gradient-to-b from-primary-dark via-primary to-primary-light text-white">
+    <aside className="
+      hidden lg:flex flex-col w-64 h-full
+      bg-brand-sidebar border-r border-brand-border
+      transition-colors duration-200
+    ">
 
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10 flex-shrink-0">
-        <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/20">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-brand-border flex-shrink-0">
+        <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center flex-shrink-0 shadow-pill">
           <span className="font-black text-[13px] tracking-tight text-white">RS</span>
         </div>
         <div>
-          <p className="font-extrabold text-[16px] leading-tight tracking-tight">Royal Success</p>
-          <p className="text-white/45 text-[10px] font-semibold uppercase tracking-widest leading-tight">Inventory & Field Agent Mgmt</p>
+          <p className="font-extrabold text-[15px] leading-tight tracking-tight text-brand-text">Royal Success</p>
+          <p className="text-brand-muted text-[10px] font-semibold uppercase tracking-widest leading-tight mt-0.5">
+            Inventory & Field Agent Mgmt
+          </p>
         </div>
       </div>
 
       {/* Nav groups */}
-      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-5">
+      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
         {groups.map((group) => (
           <div key={group.label}>
-            <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest px-3 mb-1.5">
+            <p className="text-[10px] font-bold text-brand-muted/60 uppercase tracking-widest px-3 mb-1.5">
               {group.label}
             </p>
             <div className="space-y-0.5">
@@ -130,22 +143,26 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User section */}
-      <div className="px-3 pb-4 pt-3 border-t border-white/10 flex-shrink-0">
-        <div className="flex items-center gap-3 px-3 py-3 mb-1">
-          <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0 border border-white/20">
-            <span className="text-white font-bold text-sm">{initials}</span>
+      {/* User card at bottom */}
+      <div className="px-3 pb-4 pt-3 border-t border-brand-border flex-shrink-0">
+        <motion.div
+          whileHover={{ scale: 1.01 }}
+          className="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary/8 dark:bg-primary/15 border border-primary/20 mb-2 cursor-default"
+        >
+          <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-xs">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate">{profile?.full_name ?? 'Admin'}</p>
-            <p className="text-[11px] text-white/45 font-medium">Administrator</p>
+            <p className="text-sm font-bold text-brand-text truncate">{profile?.full_name ?? 'Admin'}</p>
+            <p className="text-[11px] text-brand-muted font-medium">Administrator</p>
           </div>
-        </div>
+        </motion.div>
+
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:bg-white/10 hover:text-white transition-all duration-150 w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-brand-muted hover:bg-danger/10 hover:text-danger transition-all duration-150 w-full group"
         >
-          <MdLogout className="w-[18px] h-[18px]" />
+          <MdLogout className="w-[18px] h-[18px] group-hover:translate-x-0.5 transition-transform" />
           Sign Out
         </button>
       </div>

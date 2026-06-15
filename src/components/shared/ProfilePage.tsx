@@ -162,7 +162,7 @@ export default function ProfilePage({ standalone = true }: { standalone?: boolea
               ...(profile?.role === 'team_lead' && stats.activePhones !== undefined
                 ? [{ Icon: MdPhoneAndroid, color: 'text-green-600',  bg: 'bg-green-50    dark:bg-green-900/20',  border: 'border-l-green-500', label: 'Phones',     value: stats.activePhones,       sub: 'in hand'        }] : []),
             ].map(({ Icon, color, bg, border, label, value, sub }) => (
-              <div key={label} className={`bg-brand-surface dark:bg-dark-card border border-brand-border ${border} border-l-4 rounded-2xl p-4 shadow-card`}>
+              <div key={label} className={`bg-brand-surface dark:bg-[#162B16] border border-brand-border ${border} border-l-4 rounded-2xl p-4 shadow-card`}>
                 <div className={`w-8 h-8 ${bg} rounded-xl flex items-center justify-center mb-2`}>
                   <Icon className={`w-4 h-4 ${color}`} />
                 </div>
@@ -177,7 +177,7 @@ export default function ProfilePage({ standalone = true }: { standalone?: boolea
         {/* Personal info card */}
         <motion.div
           {...fadeUp(0.2)}
-          className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl overflow-hidden shadow-card"
+          className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl overflow-hidden shadow-card"
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-brand-border">
             <div className="flex items-center gap-2.5">
@@ -208,7 +208,7 @@ export default function ProfilePage({ standalone = true }: { standalone?: boolea
               editing={editing}
             >
               {editing
-                ? <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="input-base dark:bg-dark-surface dark:border-dark-border dark:text-slate-100 dark:placeholder:text-slate-500" />
+                ? <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="input-base dark:bg-[#111F11] dark:border-[#1E381E] dark:text-[#DFF0DF] dark:placeholder:text-[#6A9B6A]" />
                 : <p className="text-sm font-semibold text-brand-text">{profile?.full_name}</p>
               }
             </Field>
@@ -222,7 +222,7 @@ export default function ProfilePage({ standalone = true }: { standalone?: boolea
             {/* Phone */}
             <Field label="Phone Number" icon={<MdPhone className="w-3.5 h-3.5" />} editing={editing}>
               {editing
-                ? <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+234 XXX XXX XXXX" type="tel" className="input-base dark:bg-dark-surface dark:border-dark-border dark:text-slate-100 dark:placeholder:text-slate-500" />
+                ? <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+234 XXX XXX XXXX" type="tel" className="input-base dark:bg-[#111F11] dark:border-[#1E381E] dark:text-[#DFF0DF] dark:placeholder:text-[#6A9B6A]" />
                 : <p className="text-sm font-semibold text-brand-text">{profile?.phone_number ?? <span className="text-brand-muted italic font-normal">Not set</span>}</p>
               }
             </Field>

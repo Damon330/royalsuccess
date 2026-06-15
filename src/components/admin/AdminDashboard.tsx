@@ -202,7 +202,7 @@ export default function AdminDashboard() {
   })
 
   return (
-    <div className="flex-1 overflow-y-auto bg-brand-bg dark:bg-dark-bg">
+    <div className="flex-1 overflow-y-auto bg-brand-bg">
 
       <Header title="Dashboard" subtitle="Home" />
 
@@ -241,7 +241,9 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <p className="text-white/65 text-sm font-medium">Welcome back,</p>
-                <h2 className="text-2xl font-extrabold text-white leading-tight">{profile?.full_name ?? 'Admin'}</h2>
+                <h2 className="text-2xl font-extrabold leading-tight">
+                  <span className="text-gradient-green">{profile?.full_name ?? 'Admin'}</span>
+                </h2>
                 <p className="text-white/50 text-xs mt-0.5 font-medium">{todayStr}</p>
               </div>
             </div>
@@ -363,11 +365,11 @@ export default function AdminDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
-            className="bg-brand-surface dark:bg-dark-card rounded-2xl border border-brand-border shadow-card overflow-hidden"
+            className="bg-brand-surface dark:bg-[#162B16] rounded-2xl border border-brand-border shadow-card overflow-hidden"
           >
             <button
               onClick={() => setAlertsOpen((v) => !v)}
-              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg dark:hover:bg-dark-hover transition-colors"
+              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg dark:hover:bg-[#1A2E1A] transition-colors"
             >
               <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                 <MdNotifications className="w-4 h-4 text-orange-500" />
@@ -462,7 +464,7 @@ export default function AdminDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.3 }}
-          className="bg-brand-surface dark:bg-dark-card rounded-2xl border border-brand-border shadow-card overflow-hidden"
+          className="bg-brand-surface dark:bg-[#162B16] rounded-2xl border border-brand-border shadow-card overflow-hidden"
         >
           <div className="px-6 py-4 border-b border-brand-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -492,7 +494,7 @@ export default function AdminDashboard() {
               <div className="flex justify-center py-10"><Spinner size="lg" /></div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-brand-bg dark:bg-dark-bg border-b border-brand-border">
+                <thead className="bg-brand-bg dark:bg-[#0C1A0C] border-b border-brand-border">
                   <tr>
                     {['Member', 'Role', 'Assigned', 'Sold', 'Remaining', 'Sell Rate'].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -503,7 +505,7 @@ export default function AdminDashboard() {
                   {pagedTeam.map(({ profile: p, assigned, sold, remaining }) => {
                     const rate = assigned > 0 ? Math.round((sold / assigned) * 100) : 0
                     return (
-                      <tr key={p.id} className="hover:bg-brand-bg dark:hover:bg-dark-hover transition-colors">
+                      <tr key={p.id} className="hover:bg-brand-bg dark:hover:bg-[#1A2E1A] transition-colors">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${

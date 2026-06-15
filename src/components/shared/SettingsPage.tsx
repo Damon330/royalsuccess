@@ -27,7 +27,7 @@ function PasswordInput({ value, onChange, placeholder, hasError }: {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`input-base dark:bg-dark-surface dark:border-dark-border dark:text-slate-100 dark:placeholder:text-slate-500 pr-11 ${
+        className={`input-base dark:bg-[#111F11] dark:border-[#1E381E] dark:text-[#DFF0DF] dark:placeholder:text-[#6A9B6A] pr-11 ${
           hasError ? 'border-danger focus:ring-danger' : ''
         }`}
       />
@@ -111,7 +111,7 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
 
         {/* Appearance */}
         <motion.div {...fadeUp(0)}
-          className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl overflow-hidden shadow-card">
+          className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl overflow-hidden shadow-card">
           <SectionHeader icon={<MdSunny className="w-4 h-4 text-amber-500" />} iconBg="bg-amber-50 dark:bg-amber-900/20" title="Appearance" sub="Choose your preferred theme" />
           <div className="p-5">
             <div className="flex items-center gap-4">
@@ -126,7 +126,7 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
 
         {/* Change Password */}
         <motion.div {...fadeUp(0.08)}
-          className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl overflow-hidden shadow-card">
+          className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl overflow-hidden shadow-card">
           <SectionHeader icon={<MdLock className="w-4 h-4 text-primary" />} iconBg="bg-primary/10 dark:bg-primary/20" title="Change Password" sub="Use at least 8 characters" />
 
           <div className="p-5 space-y-4">
@@ -175,7 +175,7 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
 
         {/* Account info */}
         <motion.div {...fadeUp(0.16)}
-          className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl overflow-hidden shadow-card">
+          className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl overflow-hidden shadow-card">
           <SectionHeader icon={<MdInfo className="w-4 h-4 text-blue-500" />} iconBg="bg-blue-50 dark:bg-blue-900/20" title="Account Details" sub="Your account information" />
           <div className="divide-y divide-brand-border">
             {[
@@ -194,7 +194,7 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
 
         {/* Security tips */}
         <motion.div {...fadeUp(0.24)}
-          className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl overflow-hidden shadow-card">
+          className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl overflow-hidden shadow-card">
           <SectionHeader icon={<MdSecurity className="w-4 h-4 text-primary" />} iconBg="bg-primary/10 dark:bg-primary/20" title="Security Tips" sub="Keep your account safe" />
           <div className="p-5 space-y-3">
             {[
@@ -202,7 +202,7 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
               { icon: <MdDevices className="w-4 h-4 text-brand-muted flex-shrink-0 mt-0.5" />, text: 'Never share your login — every user should have their own account.' },
               { icon: <MdLogout className="w-4 h-4 text-brand-muted flex-shrink-0 mt-0.5" />,  text: 'Log out from shared or public devices after each session.' },
             ].map(({ icon, text }) => (
-              <div key={text} className="flex items-start gap-3 p-3 rounded-xl bg-brand-bg dark:bg-dark-bg/50">
+              <div key={text} className="flex items-start gap-3 p-3 rounded-xl bg-brand-bg dark:bg-[#0C1A0C]/50">
                 {icon}
                 <p className="text-sm text-brand-muted leading-relaxed">{text}</p>
               </div>
@@ -212,12 +212,12 @@ export default function SettingsPage({ standalone = true }: { standalone?: boole
 
         {/* Version + sign out */}
         <motion.div {...fadeUp(0.32)} className="space-y-3">
-          <div className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-xl px-5 py-3 flex items-center justify-between shadow-card">
+          <div className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-xl px-5 py-3 flex items-center justify-between shadow-card">
             <span className="text-sm text-brand-muted">App Version</span>
             <span className="text-sm font-semibold text-brand-text">1.0.0</span>
           </div>
 
-          <div className="bg-brand-surface dark:bg-dark-card border border-brand-border rounded-2xl p-5 shadow-card">
+          <div className="bg-brand-surface dark:bg-[#162B16] border border-brand-border rounded-2xl p-5 shadow-card">
             <Button variant="danger" onClick={handleSignOut} loading={signingOut} fullWidth size="lg">
               <MdLogout className="w-5 h-5" /> Sign Out
             </Button>
@@ -261,7 +261,7 @@ function ThemeOption({ active, icon, label, onClick }: {
       className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200 ${
         active
           ? 'border-primary bg-primary/8 dark:bg-primary/15'
-          : 'border-brand-border bg-brand-bg dark:bg-dark-bg/50 hover:border-brand-muted/50'
+          : 'border-brand-border bg-brand-bg dark:bg-[#0C1A0C]/50 hover:border-brand-muted/50'
       }`}
     >
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
