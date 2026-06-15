@@ -2,57 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ────────────────────────────────────────────────────────── */
+:root {
+  --color-bg:      #F3F4F6;
+  --color-surface: #FFFFFF;
+  --color-border:  #E5E7EB;
+  --color-text:    #111827;
+  --color-muted:   #6B7280;
+}
+
+html.dark {
+  --color-bg:      #0B1120;
+  --color-surface: #141D2F;
+  --color-border:  #1F2D45;
+  --color-text:    #E2E8F0;
+  --color-muted:   #64748B;
+}
+
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
 
   body {
     @apply bg-brand-bg text-brand-text;
     -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* Smooth scrolling on iOS */
-  .scroll-smooth-ios {
-    -webkit-overflow-scrolling: touch;
+  /* Focus ring */
+  :focus-visible {
+    outline: 2px solid #0F4C35;
+    outline-offset: 2px;
   }
 }
 
 @layer components {
-  /* Safe area insets for notched phones */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+  /* Safe area insets */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top    { padding-top:    env(safe-area-inset-top);    }
+
+  /* Card base */
+  .card {
+    @apply bg-brand-surface border border-brand-border rounded-2xl shadow-card;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
   }
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
+  .card:hover { @apply shadow-card-md; }
+
+  /* Glass effect for header */
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
   }
 
-  /* Sidebar transition */
-  .sidebar-transition {
-    @apply transition-all duration-200 ease-in-out;
-  }
+  /* Scrollbar */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-gray-300 dark:bg-slate-600 rounded-full; }
 
-  /* Card hover lift */
-  .card-hover {
-    @apply transition-shadow duration-200 hover:shadow-md;
+  /* Input base */
+  .input-base {
+    @apply w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text
+           placeholder:text-brand-muted
+           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
+           transition-all duration-150;
   }
 
   /* Sold phone fade */
-  .phone-sold {
-    @apply opacity-60;
-  }
-
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400;
-  }
+  .phone-sold { @apply opacity-60; }
 }
+
+/* Smooth iOS scrolling */
+.scroll-touch { -webkit-overflow-scrolling: touch; }

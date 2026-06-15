@@ -110,7 +110,7 @@ export default function Sidebar() {
         </div>
         <div>
           <p className="font-extrabold text-[16px] leading-tight tracking-tight">Royal Success</p>
-          <p className="text-white/45 text-[11px] font-semibold uppercase tracking-widest">Inventory System</p>
+          <p className="text-white/45 text-[10px] font-semibold uppercase tracking-widest leading-tight">Inventory & Field Agent Mgmt</p>
         </div>
       </div>
 

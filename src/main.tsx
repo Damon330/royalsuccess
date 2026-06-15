@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { queryClient } from './lib/queryClient'
 import { initWebVitals, initGlobalErrorCapture } from './lib/telemetry'
 import './index.css'
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ThemeProvider>
         <AuthProvider>
           <App />
           <Toaster
@@ -32,6 +34,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             }}
           />
         </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
       {/* DevTools panel — tree-shaken from production bundle automatically */}
       <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />

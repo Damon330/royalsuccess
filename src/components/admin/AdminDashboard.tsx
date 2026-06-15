@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
+import Header from '../shared/Header'
 import StatCard from '../shared/StatCard'
 import Badge from '../shared/Badge'
 import Pagination from '../shared/Pagination'
@@ -12,7 +14,6 @@ import {
   MdInventory2, MdStorefront, MdLocalShipping, MdCheckCircle,
   MdWarning, MdRefresh, MdUndo, MdBuildCircle, MdNotifications,
   MdExpandMore, MdExpandLess, MdTrendingUp, MdPeople,
-  MdCalendarToday,
 } from 'react-icons/md'
 
 const AGENT_STALE_DAYS    = 3
@@ -201,30 +202,11 @@ export default function AdminDashboard() {
   })
 
   return (
-    <div className="flex-1 overflow-y-auto bg-brand-bg">
+    <div className="flex-1 overflow-y-auto bg-brand-bg dark:bg-dark-bg">
 
-      {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-brand-border px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <p className="text-xs text-brand-muted font-medium">Home / Dashboard</p>
-          <h1 className="text-xl font-extrabold text-brand-text leading-tight">Dashboard</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 text-xs text-brand-muted bg-gray-50 border border-brand-border rounded-xl px-3 py-2">
-            <MdCalendarToday className="w-3.5 h-3.5 text-primary" />
-            <span className="font-medium">{new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-          </div>
-          <button
-            onClick={refetchAll}
-            title="Refresh"
-            className="p-2 rounded-xl border border-brand-border bg-white hover:bg-gray-50 text-brand-muted hover:text-primary transition-colors"
-          >
-            <MdRefresh className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+      <Header title="Dashboard" subtitle="Home" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-5">
 
         {/* ── DB error banner ──────────────────────────────────────────────── */}
         {dbError && (
@@ -378,10 +360,14 @@ export default function AdminDashboard() {
 
         {/* ── Stale Device Alerts ──────────────────────────────────────────── */}
         {(staleAlerts.length > 0 || teamLoading) && (
-          <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.3 }}
+            className="bg-brand-surface dark:bg-dark-card rounded-2xl border border-brand-border shadow-card overflow-hidden"
+          >
             <button
               onClick={() => setAlertsOpen((v) => !v)}
-              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg dark:hover:bg-dark-hover transition-colors"
             >
               <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                 <MdNotifications className="w-4 h-4 text-orange-500" />
@@ -413,7 +399,7 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-orange-50/60 border-b border-orange-100">
+                      <thead className="bg-orange-50/60 dark:bg-orange-900/10 border-b border-orange-100 dark:border-orange-900/20">
                         <tr>
                           {['Holder', 'Role', 'Model', 'IMEI / Barcode', 'Days in Field', 'Status'].map((h) => (
                             <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -424,7 +410,7 @@ export default function AdminDashboard() {
                         {pagedAlerts.map(({ phone, holderName, holderRole, daysAssigned, threshold }) => {
                           const overBy = daysAssigned - threshold
                           return (
-                            <tr key={phone.id} className="hover:bg-orange-50/30 transition-colors">
+                            <tr key={phone.id} className="hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors">
                               <td className="px-5 py-3.5 font-semibold text-brand-text">{holderName}</td>
                               <td className="px-5 py-3.5">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -469,11 +455,15 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* ── Team Overview ─────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-2xl border border-brand-border shadow-sm overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.3 }}
+          className="bg-brand-surface dark:bg-dark-card rounded-2xl border border-brand-border shadow-card overflow-hidden"
+        >
           <div className="px-6 py-4 border-b border-brand-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 bg-primary-pale rounded-xl flex items-center justify-center flex-shrink-0">
@@ -502,7 +492,7 @@ export default function AdminDashboard() {
               <div className="flex justify-center py-10"><Spinner size="lg" /></div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-brand-border">
+                <thead className="bg-brand-bg dark:bg-dark-bg border-b border-brand-border">
                   <tr>
                     {['Member', 'Role', 'Assigned', 'Sold', 'Remaining', 'Sell Rate'].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -513,13 +503,13 @@ export default function AdminDashboard() {
                   {pagedTeam.map(({ profile: p, assigned, sold, remaining }) => {
                     const rate = assigned > 0 ? Math.round((sold / assigned) * 100) : 0
                     return (
-                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={p.id} className="hover:bg-brand-bg dark:hover:bg-dark-hover transition-colors">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${
                               p.role === 'team_lead'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-green-100 text-green-700'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                             }`}>
                               {p.full_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
                             </div>
@@ -536,7 +526,7 @@ export default function AdminDashboard() {
                         <td className="px-5 py-3.5 font-semibold text-orange-500 tabular-nums">{remaining}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden min-w-[60px]">
+                            <div className="flex-1 h-1.5 bg-brand-border dark:bg-dark-border rounded-full overflow-hidden min-w-[60px]">
                               <div
                                 className="h-full bg-primary rounded-full transition-all duration-500"
                                 style={{ width: `${rate}%` }}
@@ -566,7 +556,7 @@ export default function AdminDashboard() {
               onPageChange={(p) => setTeamPage(p)}
             />
           </div>
-        </div>
+        </motion.div>
 
       </div>
     </div>
