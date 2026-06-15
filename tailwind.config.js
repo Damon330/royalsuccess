@@ -5,60 +5,63 @@ export default {
   theme: {
     extend: {
       colors: {
+        // ── Primary (sage/grass green) ────────────────────────────────────
         primary: {
-          DEFAULT: '#0F4C35',
-          light:   '#1A6B4A',
-          dark:    '#0A3526',
-          pale:    '#E0F0E8',
+          DEFAULT: '#84B84C',
+          light:   '#A3CC6A',
+          dark:    '#6B9A3A',
+          pale:    '#EEF5E3',
         },
-        accent:  '#4CAF82',
-        danger:  { DEFAULT: '#DC2626', light: '#FEE2E2' },
-        success: { DEFAULT: '#16A34A', light: '#DCFCE7' },
-        warning: { DEFAULT: '#D97706', light: '#FEF3C7' },
-        // CSS-var brand tokens — auto-switch light ↔ dark
+        // ── Accent (pink/magenta — sparing CTA only) ─────────────────────
+        accent: {
+          DEFAULT: '#E8559A',
+          light:   '#F080B8',
+          pale:    '#FDEEF6',
+        },
+        // ── Semantic ──────────────────────────────────────────────────────
+        positive: { DEFAULT: '#5BA84F', bg: '#EBF6EA' },
+        negative: { DEFAULT: '#E45B6E', bg: '#FDEAED' },
+        danger:   { DEFAULT: '#E45B6E', light: '#FDEAED' },
+        success:  { DEFAULT: '#5BA84F', light: '#EBF6EA' },
+        warning:  { DEFAULT: '#D97706', light: '#FEF3C7' },
+        // ── CSS-var brand tokens (auto-switch light ↔ dark) ───────────────
         brand: {
           bg:      'var(--color-bg)',
           surface: 'var(--color-surface)',
           border:  'var(--color-border)',
           text:    'var(--color-text)',
           muted:   'var(--color-muted)',
+          label:   'var(--color-label)',
           sidebar: 'var(--color-sidebar)',
-        },
-        // Explicit dark-mode palette (for dark: overrides in JSX)
-        dark: {
-          bg:      '#0C1A0C',
-          surface: '#111F11',
-          card:    '#162B16',
-          border:  '#1E381E',
-          hover:   '#1A2E1A',
-          sidebar: '#0A180A',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        card:  '20px',
+        inner: '12px',
       },
       minHeight: { touch: '44px' },
       minWidth:  { touch: '44px' },
       animation: {
         'fade-in':    'fadeIn 0.2s ease-out',
         'slide-down': 'slideDown 0.22s ease-out',
-        'slide-up':   'slideUp 0.22s ease-out',
         'scale-in':   'scaleIn 0.15s ease-out',
       },
       keyframes: {
-        fadeIn:    { from: { opacity: '0' },                               to: { opacity: '1' } },
+        fadeIn:    { from: { opacity: '0' },                               to: { opacity: '1' }                },
         slideDown: { from: { opacity: '0', transform: 'translateY(-8px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
-        slideUp:   { from: { opacity: '0', transform: 'translateY(8px)' },  to: { opacity: '1', transform: 'translateY(0)' } },
-        scaleIn:   { from: { opacity: '0', transform: 'scale(0.95)' },      to: { opacity: '1', transform: 'scale(1)' } },
+        scaleIn:   { from: { opacity: '0', transform: 'scale(0.95)' },      to: { opacity: '1', transform: 'scale(1)' }      },
       },
       boxShadow: {
-        'card':      '0 1px 3px 0 rgba(0,0,0,0.06),0 1px 2px -1px rgba(0,0,0,0.06)',
-        'card-md':   '0 4px 12px -2px rgba(0,0,0,0.08),0 2px 4px -2px rgba(0,0,0,0.05)',
-        'card-lg':   '0 10px 24px -4px rgba(0,0,0,0.1),0 4px 8px -4px rgba(0,0,0,0.06)',
-        'dropdown':  '0 12px 28px -6px rgba(0,0,0,0.14),0 6px 12px -6px rgba(0,0,0,0.08)',
-        'pill':      '0 2px 8px rgba(15,76,53,0.35)',
-        'glow':      '0 0 0 3px rgba(15,76,53,0.25)',
-        'glow-dark': '0 0 0 3px rgba(76,175,130,0.3)',
+        'xs':       '0 1px 2px rgba(0,0,0,0.04)',
+        'soft':     '0 2px 8px rgba(0,0,0,0.06)',
+        'card':     '0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+        'card-md':  '0 6px 20px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)',
+        'pill':     '0 2px 8px rgba(132,184,76,0.3)',
+        'dropdown': '0 10px 30px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05)',
+        'inset-sm': 'inset 0 1px 2px rgba(0,0,0,0.05)',
       },
     },
   },

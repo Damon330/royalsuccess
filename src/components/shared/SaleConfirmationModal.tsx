@@ -58,8 +58,8 @@ export default function SaleConfirmationModal({ phone, onConfirm, onClose }: Pro
       <div className="space-y-5">
 
         {/* Phone thumbnail */}
-        <div className="flex items-center gap-3 bg-primary-pale border border-primary/20 rounded-xl p-4">
-          <div className="bg-primary rounded-xl p-3 flex-shrink-0">
+        <div className="flex items-center gap-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 rounded-inner p-4">
+          <div className="bg-gradient-primary rounded-inner p-3 flex-shrink-0">
             <MdPhoneAndroid className="w-7 h-7 text-white" />
           </div>
           <div>

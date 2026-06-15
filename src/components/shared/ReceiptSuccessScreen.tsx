@@ -33,7 +33,7 @@ export default function ReceiptSuccessScreen({ receipt, pdfBlob, onClose }: Prop
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center space-y-5">
+      <div className="bg-brand-surface rounded-card w-full max-w-sm p-8 text-center space-y-5" style={{ boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         {/* Icon */}
         <div className="flex justify-center">
           <div className="bg-green-100 rounded-full p-4">
@@ -47,7 +47,7 @@ export default function ReceiptSuccessScreen({ receipt, pdfBlob, onClose }: Prop
         </div>
 
         {/* Receipt number */}
-        <div className="bg-primary-pale border border-primary/20 rounded-xl py-3 px-5 inline-block w-full">
+        <div className="bg-primary/10 dark:bg-primary/20 border border-primary/20 rounded-inner py-3 px-5 inline-block w-full">
           <p className="text-xs text-brand-muted uppercase tracking-wide font-semibold">Receipt No.</p>
           <p className="text-2xl font-extrabold text-primary mt-0.5">{receipt.receipt_number}</p>
           <p className="text-sm text-brand-muted mt-1">

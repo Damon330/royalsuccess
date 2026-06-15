@@ -23,9 +23,9 @@ const ACTION_CONFIG: Record<ActivityActionType, {
   SALE_RETURNED:     { icon: TbArrowBackUp,   dot: 'bg-red-500',    bg: 'bg-red-50',    label: 'Sale Returned'     },
   STOCK_ADDED:       { icon: TbPackageImport, dot: 'bg-blue-500',   bg: 'bg-blue-50',   label: 'Stock Added'       },
   STOCK_ADJUSTED:    { icon: TbAdjustments,   dot: 'bg-blue-400',   bg: 'bg-blue-50',   label: 'Stock Adjusted'    },
-  USER_CREATED:      { icon: TbUserPlus,      dot: 'bg-primary',    bg: 'bg-primary-pale', label: 'User Created'   },
-  USER_DEACTIVATED:  { icon: TbUserOff,       dot: 'bg-gray-400',   bg: 'bg-gray-50',   label: 'User Deactivated'  },
-  RECEIPT_GENERATED: { icon: TbReceipt,       dot: 'bg-primary',    bg: 'bg-primary-pale', label: 'Receipt Generated' },
+  USER_CREATED:      { icon: TbUserPlus,      dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'User Created'   },
+  USER_DEACTIVATED:  { icon: TbUserOff,       dot: 'bg-gray-400',   bg: 'bg-gray-50 dark:bg-gray-800/20',   label: 'User Deactivated'  },
+  RECEIPT_GENERATED: { icon: TbReceipt,       dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'Receipt Generated' },
   SCAN_EVENT:        { icon: TbScan,          dot: 'bg-gray-400',   bg: 'bg-gray-50',   label: 'Scan Event'        },
 }
 

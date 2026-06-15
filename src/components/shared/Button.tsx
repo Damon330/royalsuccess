@@ -1,35 +1,36 @@
 import { ButtonHTMLAttributes, ReactNode } from 'react'
 import Spinner from './Spinner'
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'success'
+type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost' | 'success'
 type Size = 'sm' | 'md' | 'lg'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant
-  size?: Size
-  loading?: boolean
-  children: ReactNode
+  variant?:  Variant
+  size?:     Size
+  loading?:  boolean
+  children:  ReactNode
   fullWidth?: boolean
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-primary hover:bg-primary-light text-white shadow-sm',
-  secondary: 'bg-white border border-brand-border hover:bg-gray-50 text-brand-text shadow-sm',
-  danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm',
-  ghost: 'hover:bg-gray-100 text-brand-muted',
-  success: 'bg-green-600 hover:bg-green-700 text-white shadow-sm',
+  primary:   'bg-primary hover:bg-primary-light active:bg-primary-dark text-white shadow-pill',
+  accent:    'bg-accent hover:bg-accent-light active:bg-accent text-white shadow-sm',
+  secondary: 'bg-brand-surface border border-brand-border hover:border-primary/40 hover:text-primary text-brand-text shadow-xs',
+  danger:    'bg-negative hover:bg-red-500 active:bg-red-700 text-white shadow-sm',
+  ghost:     'hover:bg-primary/8 text-brand-muted hover:text-primary',
+  success:   'bg-positive hover:bg-green-600 text-white shadow-sm',
 }
 
 const sizeClasses: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-sm rounded-lg',
-  md: 'px-4 py-2 text-sm rounded-lg',
-  lg: 'px-6 py-3 text-base rounded-xl min-h-touch',
+  sm: 'px-4 py-1.5 text-xs  rounded-full',
+  md: 'px-5 py-2   text-sm  rounded-full',
+  lg: 'px-6 py-3   text-sm  rounded-full min-h-touch font-semibold',
 }
 
 export default function Button({
-  variant = 'primary',
-  size = 'md',
-  loading = false,
+  variant   = 'primary',
+  size      = 'md',
+  loading   = false,
   children,
   fullWidth = false,
   className = '',
@@ -41,9 +42,11 @@ export default function Button({
       {...props}
       disabled={disabled || loading}
       className={`
-        inline-flex items-center justify-center gap-2 font-medium
-        transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1
-        disabled:opacity-60 disabled:cursor-not-allowed
+        inline-flex items-center justify-center gap-2 font-semibold
+        transition-all duration-150
+        focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-1
+        disabled:opacity-50 disabled:cursor-not-allowed
+        active:scale-[0.98]
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${fullWidth ? 'w-full' : ''}

@@ -53,7 +53,7 @@ export default function NotificationBell({ userId }: Props) {
       {/* Bell button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors"
+        className="relative p-2 rounded-inner hover:bg-primary/8 transition-colors"
         aria-label="Notifications"
       >
         {unreadCount > 0
@@ -68,7 +68,7 @@ export default function NotificationBell({ userId }: Props) {
 
       {/* Panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-brand-border z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-brand-surface rounded-card border border-brand-border z-50 overflow-hidden" style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 4px 10px rgba(0,0,0,0.05)' }}>
           {/* Panel header */}
           <div className="px-4 py-3 border-b border-brand-border flex items-center justify-between">
             <h3 className="font-semibold text-brand-text text-sm">Notifications</h3>
@@ -91,7 +91,7 @@ export default function NotificationBell({ userId }: Props) {
                 <button
                   key={n.id}
                   onClick={() => handleNotificationClick(n)}
-                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${!n.read ? 'bg-primary-pale' : ''}`}
+                  className={`w-full text-left px-4 py-3 hover:bg-brand-bg transition-colors ${!n.read ? 'bg-primary/8 dark:bg-primary/12' : ''}`}
                 >
                   <div className="flex items-start gap-2">
                     <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />

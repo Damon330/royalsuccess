@@ -25,9 +25,9 @@ export default function AccountPage() {
     <div className="flex flex-col min-h-screen bg-brand-bg">
 
       {/* Top bar */}
-      <div className="bg-brand-surface dark:bg-dark-card border-b border-brand-border sticky top-0 z-10">
+      <div className="bg-brand-surface border-b border-brand-border sticky top-0 z-10">
         <div className="flex items-center gap-3 px-4 py-3 border-b border-brand-border/50">
-          <div className="w-9 h-9 bg-primary rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+          <div className="w-9 h-9 bg-gradient-primary rounded-inner flex items-center justify-center flex-shrink-0 shadow-pill">
             <span className="text-white font-extrabold text-sm">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
@@ -37,7 +37,7 @@ export default function AccountPage() {
           {/* Quick theme toggle */}
           <button
             onClick={toggleTheme}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-brand-muted hover:text-brand-text hover:bg-brand-border/60 transition-all"
+            className="w-9 h-9 rounded-inner flex items-center justify-center text-brand-muted hover:text-brand-text hover:bg-primary/8 transition-all"
           >
             {isDark
               ? <MdSunny className="w-5 h-5 text-amber-400" />

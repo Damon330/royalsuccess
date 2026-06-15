@@ -69,6 +69,25 @@ function RingChart({ percent, color, size = 76, strokeWidth = 7 }: {
   )
 }
 
+function RingMetric({ percent, color, label, value, total }: {
+  percent: number; color: string; label: string; value: number; total: number
+}) {
+  return (
+    <div className="text-center">
+      <div className="relative inline-flex items-center justify-center">
+        <RingChart percent={percent} color={color} size={76} strokeWidth={7} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-sm font-extrabold text-white leading-none">
+            {total > 0 ? `${Math.round(percent)}%` : '—'}
+          </span>
+        </div>
+      </div>
+      <p className="text-white/55 text-[10px] font-bold uppercase tracking-widest mt-1">{label}</p>
+      <p className="text-white font-extrabold text-sm tabular-nums">{value}</p>
+    </div>
+  )
+}
+
 // ── Data fetchers ──────────────────────────────────────────────────────────────
 
 async function fetchDashboardStats(): Promise<AdminDashboardStats> {
@@ -210,17 +229,17 @@ export default function AdminDashboard() {
 
         {/* ── DB error banner ──────────────────────────────────────────────── */}
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-card p-4 flex items-start gap-3">
             <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Database connection failed</p>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
                 {(teamErrorObj as Error)?.message ?? 'Go to supabase.com → resume project → Refresh.'}
               </p>
             </div>
             <button
               onClick={refetchAll}
-              className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 px-3 py-1.5 rounded-full transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Refresh
             </button>
@@ -228,70 +247,34 @@ export default function AdminDashboard() {
         )}
 
         {/* ── Welcome Banner ───────────────────────────────────────────────── */}
-        <div className="bg-gradient-to-br from-primary via-primary to-primary-light rounded-2xl p-6 shadow-md overflow-hidden relative">
-          {/* Decorative circles */}
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full pointer-events-none" />
-          <div className="absolute -bottom-8 right-20 w-28 h-28 bg-white/5 rounded-full pointer-events-none" />
+        <div className="bg-gradient-banner rounded-card p-6 shadow-card overflow-hidden relative">
+          {/* Decorative blobs */}
+          <div className="absolute -top-10 -right-8 w-44 h-44 bg-white/6 rounded-full pointer-events-none" />
+          <div className="absolute -bottom-6 right-24 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
+          <div className="absolute top-1/2 -translate-y-1/2 left-1/2 w-96 h-1 bg-white/5 blur-sm pointer-events-none" />
 
           <div className="relative flex flex-col lg:flex-row items-start lg:items-center gap-6">
             {/* Left: greeting */}
             <div className="flex items-center gap-4 flex-1">
-              <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center border-2 border-white/25 flex-shrink-0 shadow-inner">
+              <div className="w-14 h-14 bg-white/20 rounded-card flex items-center justify-center border border-white/20 flex-shrink-0 shadow-soft">
                 <span className="text-xl font-extrabold text-white tracking-tight">{initials}</span>
               </div>
               <div>
-                <p className="text-white/65 text-sm font-medium">Welcome back,</p>
+                <p className="text-white/60 text-sm font-medium tracking-wide">Welcome back,</p>
                 <h2 className="text-2xl font-extrabold leading-tight">
-                  <span className="text-gradient-green">{profile?.full_name ?? 'Admin'}</span>
+                  <span className="text-white">{profile?.full_name?.split(' ')[0] ?? 'Admin'} </span>
+                  <span className="text-accent-light font-extrabold">{profile?.full_name?.split(' ').slice(1).join(' ')}</span>
                 </h2>
-                <p className="text-white/50 text-xs mt-0.5 font-medium">{todayStr}</p>
+                <p className="text-white/45 text-xs mt-0.5 font-medium">{todayStr}</p>
               </div>
             </div>
 
-            {/* Right: ring metrics */}
+            {/* Right: ring metrics — primary=lime, accent=pink, blue=stock */}
             <div className="flex items-center gap-5 sm:gap-8 flex-wrap">
 
-              {/* Sell-Through */}
-              <div className="text-center">
-                <div className="relative inline-flex items-center justify-center">
-                  <RingChart percent={sellThroughRate} color="#4ade80" size={76} strokeWidth={7} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-extrabold text-white leading-none">
-                      {stats.total > 0 ? `${Math.round(sellThroughRate)}%` : '—'}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-white/65 text-[11px] font-semibold uppercase tracking-wide mt-1">Sold</p>
-                <p className="text-white font-bold text-sm tabular-nums">{stats.sold}</p>
-              </div>
-
-              {/* In Field */}
-              <div className="text-center">
-                <div className="relative inline-flex items-center justify-center">
-                  <RingChart percent={fieldRate} color="#fb923c" size={76} strokeWidth={7} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-extrabold text-white leading-none">
-                      {stats.total > 0 ? `${Math.round(fieldRate)}%` : '—'}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-white/65 text-[11px] font-semibold uppercase tracking-wide mt-1">In Field</p>
-                <p className="text-white font-bold text-sm tabular-nums">{stats.in_field}</p>
-              </div>
-
-              {/* In Stock */}
-              <div className="text-center">
-                <div className="relative inline-flex items-center justify-center">
-                  <RingChart percent={stockRate} color="#60a5fa" size={76} strokeWidth={7} />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-sm font-extrabold text-white leading-none">
-                      {stats.total > 0 ? `${Math.round(stockRate)}%` : '—'}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-white/65 text-[11px] font-semibold uppercase tracking-wide mt-1">In Stock</p>
-                <p className="text-white font-bold text-sm tabular-nums">{stats.in_stock}</p>
-              </div>
+              <RingMetric percent={sellThroughRate} color="#B6D86B" label="Sold"     value={stats.sold}     total={stats.total} />
+              <RingMetric percent={fieldRate}        color="#E8559A" label="In Field" value={stats.in_field} total={stats.total} />
+              <RingMetric percent={stockRate}        color="#84B84C" label="In Stock" value={stats.in_stock} total={stats.total} />
 
             </div>
           </div>
@@ -300,61 +283,49 @@ export default function AdminDashboard() {
         {/* ── Inventory Stats ───────────────────────────────────────────────── */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <MdInventory2 className="w-4 h-4 text-brand-muted" />
-            <h2 className="text-xs font-bold text-brand-muted uppercase tracking-widest">Inventory Overview</h2>
+            <MdInventory2 className="w-3.5 h-3.5 text-brand-label" />
+            <h2 className="section-label">Inventory Overview</h2>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <StatCard
-              label="Total Phones"
-              value={stats.total}
+              label="Total" value={stats.total}
               icon={<MdInventory2 className="w-5 h-5 text-primary" />}
-              iconBg="bg-primary-pale"
-              borderColor="border-l-primary"
-              valueColor="text-primary"
+              iconBg="bg-primary/10 dark:bg-primary/20"
+              accentColor="bg-primary"
             />
             <StatCard
-              label="In Stock"
-              value={stats.in_stock}
-              icon={<MdStorefront className="w-5 h-5 text-blue-600" />}
-              iconBg="bg-blue-50"
-              borderColor="border-l-blue-500"
-              valueColor="text-blue-700"
+              label="In Stock" value={stats.in_stock}
+              icon={<MdStorefront className="w-5 h-5 text-blue-500" />}
+              iconBg="bg-blue-50 dark:bg-blue-900/20"
+              accentColor="bg-blue-400"
               sub={pct(stats.in_stock)}
             />
             <StatCard
-              label="Out in Field"
-              value={stats.in_field}
-              icon={<MdLocalShipping className="w-5 h-5 text-orange-500" />}
-              iconBg="bg-orange-50"
-              borderColor="border-l-orange-400"
-              valueColor="text-orange-600"
+              label="In Field" value={stats.in_field}
+              icon={<MdLocalShipping className="w-5 h-5 text-accent" />}
+              iconBg="bg-accent/10 dark:bg-accent/15"
+              accentColor="bg-accent"
               sub={pct(stats.in_field)}
             />
             <StatCard
-              label="Total Sold"
-              value={stats.sold}
-              icon={<MdCheckCircle className="w-5 h-5 text-green-600" />}
-              iconBg="bg-green-50"
-              borderColor="border-l-green-500"
-              valueColor="text-green-700"
+              label="Sold" value={stats.sold}
+              icon={<MdCheckCircle className="w-5 h-5 text-positive" />}
+              iconBg="bg-positive/10 dark:bg-positive/15"
+              accentColor="bg-positive"
               sub={pct(stats.sold)}
             />
             <StatCard
-              label="Returned"
-              value={stats.returned}
-              icon={<MdUndo className="w-5 h-5 text-yellow-600" />}
-              iconBg="bg-yellow-50"
-              borderColor="border-l-yellow-400"
-              valueColor="text-yellow-700"
+              label="Returned" value={stats.returned}
+              icon={<MdUndo className="w-5 h-5 text-amber-500" />}
+              iconBg="bg-amber-50 dark:bg-amber-900/20"
+              accentColor="bg-amber-400"
               sub={pct(stats.returned)}
             />
             <StatCard
-              label="Damaged"
-              value={stats.damaged}
-              icon={<MdBuildCircle className="w-5 h-5 text-red-500" />}
-              iconBg="bg-red-50"
-              borderColor="border-l-red-500"
-              valueColor="text-red-600"
+              label="Damaged" value={stats.damaged}
+              icon={<MdBuildCircle className="w-5 h-5 text-negative" />}
+              iconBg="bg-negative/10 dark:bg-negative/15"
+              accentColor="bg-negative"
               sub={pct(stats.damaged)}
             />
           </div>
@@ -365,14 +336,14 @@ export default function AdminDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
-            className="bg-brand-surface dark:bg-[#162B16] rounded-2xl border border-brand-border shadow-card overflow-hidden"
+            className="bg-brand-surface rounded-card border border-brand-border shadow-card overflow-hidden"
           >
             <button
               onClick={() => setAlertsOpen((v) => !v)}
-              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg dark:hover:bg-[#1A2E1A] transition-colors"
+              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg transition-colors"
             >
-              <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <MdNotifications className="w-4 h-4 text-orange-500" />
+              <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-inner flex items-center justify-center flex-shrink-0">
+                <MdNotifications className="w-4 h-4 text-amber-500" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-brand-text">Stale Device Alerts</p>
@@ -381,7 +352,7 @@ export default function AdminDashboard() {
                 </p>
               </div>
               {staleAlerts.length > 0 && (
-                <span className="bg-orange-500 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full tabular-nums">
+                <span className="bg-amber-500 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full tabular-nums">
                   {staleAlerts.length}
                 </span>
               )}
@@ -401,10 +372,10 @@ export default function AdminDashboard() {
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead className="bg-orange-50/60 dark:bg-orange-900/10 border-b border-orange-100 dark:border-orange-900/20">
+                      <thead className="bg-brand-bg border-b border-brand-border">
                         <tr>
                           {['Holder', 'Role', 'Model', 'IMEI / Barcode', 'Days in Field', 'Status'].map((h) => (
-                            <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
+                            <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-label uppercase tracking-wide whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -412,27 +383,25 @@ export default function AdminDashboard() {
                         {pagedAlerts.map(({ phone, holderName, holderRole, daysAssigned, threshold }) => {
                           const overBy = daysAssigned - threshold
                           return (
-                            <tr key={phone.id} className="hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors">
+                            <tr key={phone.id} className="hover:bg-brand-bg transition-colors">
                               <td className="px-5 py-3.5 font-semibold text-brand-text">{holderName}</td>
                               <td className="px-5 py-3.5">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
-                                  holderRole === 'team_lead' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                                }`}>
+                                <Badge variant={holderRole === 'team_lead' ? 'blue' : 'green'}>
                                   {holderRole === 'team_lead' ? 'Team Lead' : 'Agent'}
-                                </span>
+                                </Badge>
                               </td>
                               <td className="px-5 py-3.5 text-brand-text">{phone.model}</td>
                               <td className="px-5 py-3.5 font-mono text-xs text-brand-muted">
                                 {phone.imei ?? phone.barcode ?? phone.serial_number}
                               </td>
                               <td className="px-5 py-3.5">
-                                <span className="font-extrabold text-orange-600 tabular-nums">{daysAssigned}d</span>
-                                <span className="text-xs text-orange-400 ml-1.5">+{overBy}d over</span>
+                                <span className="font-extrabold text-amber-600 dark:text-amber-400 tabular-nums">{daysAssigned}d</span>
+                                <span className="text-xs text-brand-muted ml-1.5">+{overBy}d over</span>
                               </td>
                               <td className="px-5 py-3.5">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
-                                  <MdWarning className="w-3 h-3" /> Overdue
-                                </span>
+                                <Badge variant="yellow">
+                                  <MdWarning className="w-3 h-3 mr-1" /> Overdue
+                                </Badge>
                               </td>
                             </tr>
                           )
@@ -464,11 +433,11 @@ export default function AdminDashboard() {
         <motion.div
           initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.3 }}
-          className="bg-brand-surface dark:bg-[#162B16] rounded-2xl border border-brand-border shadow-card overflow-hidden"
+          className="bg-brand-surface rounded-card border border-brand-border shadow-card overflow-hidden"
         >
           <div className="px-6 py-4 border-b border-brand-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-primary-pale rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-inner flex items-center justify-center flex-shrink-0">
                 <MdPeople className="w-4 h-4 text-primary" />
               </div>
               <div>
@@ -480,9 +449,9 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center gap-2">
               {teamFetching && !teamLoading && <Spinner size="sm" />}
-              <div className="hidden sm:flex items-center gap-1.5">
-                <MdTrendingUp className="w-4 h-4 text-green-500" />
-                <span className="text-xs font-semibold text-green-600">
+              <div className="hidden sm:flex items-center gap-1.5 bg-positive/10 dark:bg-positive/15 px-3 py-1 rounded-full">
+                <MdTrendingUp className="w-4 h-4 text-positive" />
+                <span className="text-xs font-semibold text-positive">
                   {allRows.reduce((s, r) => s + r.sold, 0)} total sold
                 </span>
               </div>
@@ -494,10 +463,10 @@ export default function AdminDashboard() {
               <div className="flex justify-center py-10"><Spinner size="lg" /></div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-brand-bg dark:bg-[#0C1A0C] border-b border-brand-border">
+                <thead className="bg-brand-bg border-b border-brand-border">
                   <tr>
                     {['Member', 'Role', 'Assigned', 'Sold', 'Remaining', 'Sell Rate'].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-5 py-3 text-left text-xs font-bold text-brand-label uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -505,13 +474,13 @@ export default function AdminDashboard() {
                   {pagedTeam.map(({ profile: p, assigned, sold, remaining }) => {
                     const rate = assigned > 0 ? Math.round((sold / assigned) * 100) : 0
                     return (
-                      <tr key={p.id} className="hover:bg-brand-bg dark:hover:bg-[#1A2E1A] transition-colors">
+                      <tr key={p.id} className="hover:bg-brand-bg transition-colors">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2.5">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${
+                            <div className={`w-8 h-8 rounded-inner flex items-center justify-center text-xs font-extrabold flex-shrink-0 ${
                               p.role === 'team_lead'
                                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : 'bg-primary/10 dark:bg-primary/20 text-primary'
                             }`}>
                               {p.full_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
                             </div>
@@ -524,13 +493,13 @@ export default function AdminDashboard() {
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5 font-semibold text-brand-text tabular-nums">{assigned}</td>
-                        <td className="px-5 py-3.5 font-bold text-green-600 tabular-nums">{sold}</td>
-                        <td className="px-5 py-3.5 font-semibold text-orange-500 tabular-nums">{remaining}</td>
+                        <td className="px-5 py-3.5 font-bold text-positive tabular-nums">{sold}</td>
+                        <td className="px-5 py-3.5 font-semibold text-accent tabular-nums">{remaining}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-brand-border dark:bg-dark-border rounded-full overflow-hidden min-w-[60px]">
+                            <div className="flex-1 h-1.5 bg-brand-border rounded-full overflow-hidden min-w-[60px]">
                               <div
-                                className="h-full bg-primary rounded-full transition-all duration-500"
+                                className="h-full bg-gradient-primary rounded-full transition-all duration-500"
                                 style={{ width: `${rate}%` }}
                               />
                             </div>

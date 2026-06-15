@@ -1,26 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ── Theme tokens ──────────────────────────────────────────────────────────── */
 :root {
-  /* Light mode — green-tinted like eCommUIUX light */
-  --color-bg:      #EEF4EE;
+  /* LIGHT MODE — pale mint canvas */
+  --color-bg:      #E9F0EA;
   --color-surface: #FFFFFF;
-  --color-border:  #D0E4D0;
-  --color-text:    #1A2E1A;
-  --color-muted:   #547054;
-  --color-sidebar: #E4EDE4;
+  --color-border:  #D8E6DA;
+  --color-text:    #1F2A22;
+  --color-muted:   #6B7A6E;
+  --color-label:   #9AA89C;
+  --color-sidebar: #E9F0EA;
 }
 
 html.dark {
-  /* Dark mode — near-black green like eCommUIUX dark */
-  --color-bg:      #0C1A0C;
-  --color-surface: #111F11;
-  --color-border:  #1E381E;
-  --color-text:    #DFF0DF;
-  --color-muted:   #6A9B6A;
-  --color-sidebar: #0A180A;
+  /* DARK MODE — deep forest green */
+  --color-bg:      #16241A;
+  --color-surface: #1E3024;
+  --color-border:  #2A4030;
+  --color-text:    #EAF1EB;
+  --color-muted:   #9FB0A2;
+  --color-label:   #6B8070;
+  --color-sidebar: #16241A;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────────── */
@@ -29,14 +33,16 @@ html.dark {
   html { scroll-behavior: smooth; }
 
   body {
-    @apply bg-brand-bg text-brand-text font-sans;
+    font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+    @apply bg-brand-bg text-brand-text;
     -webkit-tap-highlight-color: transparent;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   :focus-visible {
-    outline: 2px solid #0F4C35;
+    outline: 2px solid #84B84C;
     outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
@@ -45,47 +51,57 @@ html.dark {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
   .safe-top    { padding-top:    env(safe-area-inset-top);    }
 
-  /* Glass effect for header */
+  /* Glass blur for sticky header */
   .glass {
-    backdrop-filter: blur(14px) saturate(180%);
-    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
   }
 
-  /* Reusable input */
+  /* Base input */
   .input-base {
-    @apply w-full bg-brand-surface border border-brand-border rounded-xl px-4 py-3 text-sm
-           text-brand-text placeholder:text-brand-muted
-           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
+    @apply w-full bg-brand-surface border border-brand-border rounded-inner
+           px-4 py-3 text-sm text-brand-text placeholder:text-brand-muted
+           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50
            transition-all duration-150;
   }
 
-  /* Scrollbar */
+  /* Soft scrollbar */
   ::-webkit-scrollbar        { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track  { background: transparent; }
   ::-webkit-scrollbar-thumb  { @apply bg-brand-border rounded-full; }
 
-  /* Card base */
+  /* Card utility */
   .card {
-    @apply bg-brand-surface border border-brand-border rounded-2xl;
-    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.06);
-    transition: box-shadow 0.2s ease;
+    @apply bg-brand-surface rounded-card;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
   }
-  .card:hover {
-    box-shadow: 0 4px 12px -2px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.05);
+
+  /* Section label (MAIN / OTHER etc.) */
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-label;
   }
 }
 
-/* Gradient text utility (for welcome name) */
-.text-gradient-green {
-  background: linear-gradient(135deg, #2ECC71 0%, #0F4C35 50%, #4CAF82 100%);
+/* ── Gradient utilities ────────────────────────────────────────────────────── */
+
+/* Gradient name text — green → pink in light, bright in dark */
+.text-gradient-brand {
+  background: linear-gradient(90deg, #84B84C 0%, #E8559A 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.dark .text-gradient-green {
-  background: linear-gradient(135deg, #4CAF82 0%, #2ECC71 50%, #86EFAC 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Primary bar/chart fill */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #B6D86B 0%, #4CA37A 100%);
 }
+
+/* Welcome banner bg */
+.bg-gradient-banner {
+  background: linear-gradient(135deg, #3A7D44 0%, #4CA37A 50%, #84B84C 100%);
+}
+
+/* Trend pills */
+.trend-up   { @apply bg-positive/10 text-positive   dark:bg-positive/15; }
+.trend-down { @apply bg-negative/10 text-negative    dark:bg-negative/15; }
