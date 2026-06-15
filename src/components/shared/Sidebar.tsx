@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
   MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt, MdTrendingUp,
-  MdAttachMoney,
+  MdAttachMoney, MdPerson, MdSettings,
 } from 'react-icons/md'
 
 export default function Sidebar() {
@@ -35,6 +35,8 @@ export default function Sidebar() {
     { path: '/admin/reports',   label: 'Reports',       icon: MdBarChart     },
     { path: '/admin/insights',  label: 'Insights',      icon: MdTrendingUp   },
     { path: '/admin/payroll',   label: 'Payroll',       icon: MdAttachMoney  },
+    { path: '/admin/profile',   label: 'Profile',       icon: MdPerson       },
+    { path: '/admin/settings',  label: 'Settings',      icon: MdSettings     },
   ]
 
   return (

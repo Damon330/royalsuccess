@@ -7,6 +7,7 @@ import type { PayrollTarget, TargetFormData } from '../../../hooks/usePayroll'
 import { formatNaira } from '../../../lib/payrollEngine'
 import {
   MdAdd, MdDelete, MdCheckCircle, MdCancel,
+  MdPerson, MdGroup, MdPeople,
 } from 'react-icons/md'
 
 interface Props {
@@ -29,6 +30,17 @@ const REWARD_MODE_DESCRIPTIONS: Record<string, string> = {
   ABOVE_TARGET_ONLY: 'Bonus only on units/₦ above the target threshold',
 }
 
+type SelectionMode = 'individual' | 'all_agents' | 'all_team_leads' | 'everyone'
+
+const SELECTION_OPTIONS: {
+  id: SelectionMode; label: string; description: string; Icon: React.ElementType
+}[] = [
+  { id: 'individual',    label: 'Individual',    description: 'One specific employee',         Icon: MdPerson },
+  { id: 'all_agents',    label: 'All Agents',    description: 'Every active agent at once',    Icon: MdGroup  },
+  { id: 'all_team_leads', label: 'All TLs',      description: 'Every active team lead',        Icon: MdGroup  },
+  { id: 'everyone',      label: 'Everyone',      description: 'All agents and team leads',     Icon: MdPeople },
+]
+
 const DEFAULT_FORM: TargetFormData = {
   employee_id:  '',
   metric:       'units',
@@ -46,50 +58,123 @@ function TargetModal({ initial, onSave, onClose, profiles }: {
   onClose:  () => void
   profiles: { id: string; full_name: string; role: string }[]
 }) {
-  const [form,   setForm]   = useState<TargetFormData>(initial)
-  const [saving, setSaving] = useState(false)
+  const [form,          setForm]          = useState<TargetFormData>(initial)
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('individual')
+  const [saving,        setSaving]        = useState(false)
 
   function set<K extends keyof TargetFormData>(k: K, v: TargetFormData[K]) {
     setForm((f) => ({ ...f, [k]: v }))
   }
 
+  function getGroupEmployees() {
+    if (selectionMode === 'all_agents')     return profiles.filter((p) => p.role === 'agent')
+    if (selectionMode === 'all_team_leads') return profiles.filter((p) => p.role === 'team_lead')
+    if (selectionMode === 'everyone')       return profiles
+    return []
+  }
+
   async function handleSave() {
-    if (!form.employee_id) { return }
-    setSaving(true)
     const data: TargetFormData = {
       ...form,
       target_value: Number(form.target_value) || 0,
       reward_value: Number(form.reward_value)  || 0,
     }
-    const ok = await onSave(data)
+    setSaving(true)
+
+    if (selectionMode === 'individual') {
+      if (!form.employee_id) { setSaving(false); return }
+      const ok = await onSave({ ...data, employee_id: form.employee_id })
+      setSaving(false)
+      if (ok) onClose()
+      return
+    }
+
+    // Group mode: save for each employee sequentially (respects unique-active constraint)
+    const group = getGroupEmployees()
+    if (group.length === 0) { setSaving(false); return }
+    let allOk = true
+    for (const emp of group) {
+      const ok = await onSave({ ...data, employee_id: emp.id })
+      if (!ok) { allOk = false; break }
+    }
     setSaving(false)
-    if (ok) onClose()
+    if (allOk) onClose()
   }
 
+  const groupEmployees = getGroupEmployees()
   const rewardLabel = form.reward_mode === 'ALL_SALES' && form.metric === 'revenue'
     ? '% of total revenue (enter as whole number, e.g. 5 = 5%)'
     : '₦ amount'
 
   return (
     <Modal isOpen onClose={onClose} title="Performance Target">
-      <div className="space-y-4">
+      <div className="space-y-4 max-h-[78vh] overflow-y-auto pr-0.5">
 
-        {/* Employee */}
+        {/* Selection mode toggle */}
         <div>
-          <label className="block text-sm font-medium text-brand-text mb-1.5">Employee</label>
-          <select
-            value={form.employee_id}
-            onChange={(e) => set('employee_id', e.target.value)}
-            className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-          >
-            <option value="">— Select employee —</option>
-            {profiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name} ({p.role === 'team_lead' ? 'Team Lead' : 'Agent'})
-              </option>
+          <label className="block text-sm font-medium text-brand-text mb-2">Apply To</label>
+          <div className="grid grid-cols-2 gap-2">
+            {SELECTION_OPTIONS.map(({ id, label, description, Icon }) => (
+              <button
+                key={id}
+                onClick={() => setSelectionMode(id)}
+                className={`flex items-start gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
+                  selectionMode === id
+                    ? 'border-primary bg-primary-pale'
+                    : 'border-brand-border hover:border-primary/40'
+                }`}
+              >
+                <Icon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${selectionMode === id ? 'text-primary' : 'text-brand-muted'}`} />
+                <div>
+                  <p className={`text-xs font-bold leading-none ${selectionMode === id ? 'text-primary' : 'text-brand-text'}`}>
+                    {label}
+                  </p>
+                  <p className="text-[10px] text-brand-muted leading-tight mt-1">{description}</p>
+                </div>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
+
+        {/* Individual employee picker OR group summary */}
+        {selectionMode === 'individual' ? (
+          <div>
+            <label className="block text-sm font-medium text-brand-text mb-1.5">Employee</label>
+            <select
+              value={form.employee_id}
+              onChange={(e) => set('employee_id', e.target.value)}
+              className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            >
+              <option value="">— Select employee —</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name} ({p.role === 'team_lead' ? 'Team Lead' : 'Agent'})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className={`rounded-xl px-4 py-3 text-sm font-medium flex items-start gap-2 ${
+            groupEmployees.length > 0
+              ? 'bg-primary-pale text-primary'
+              : 'bg-amber-50 text-amber-700'
+          }`}>
+            <MdPeople className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>
+              {groupEmployees.length > 0
+                ? <>
+                    <strong>{groupEmployees.length} employee{groupEmployees.length !== 1 ? 's' : ''}</strong>{' '}
+                    will receive this target:{' '}
+                    {groupEmployees.slice(0, 3).map((e) => e.full_name.split(' ')[0]).join(', ')}
+                    {groupEmployees.length > 3 && ` +${groupEmployees.length - 3} more`}
+                  </>
+                : 'No active employees in this group.'
+              }
+            </span>
+          </div>
+        )}
+
+        <hr className="border-brand-border" />
 
         {/* Metric + Period */}
         <div className="grid grid-cols-2 gap-3">
@@ -182,9 +267,10 @@ function TargetModal({ initial, onSave, onClose, profiles }: {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-brand-muted">₦</span>
             <input
               type="number" min="0" step="500"
-              value={form.reward_mode === 'ALL_SALES' && form.metric === 'revenue'
-                ? (form.reward_value * 100).toFixed(1)
-                : form.reward_value
+              value={
+                form.reward_mode === 'ALL_SALES' && form.metric === 'revenue'
+                  ? (form.reward_value * 100).toFixed(1)
+                  : form.reward_value
               }
               onChange={(e) => {
                 const v = Number(e.target.value)
@@ -211,8 +297,20 @@ function TargetModal({ initial, onSave, onClose, profiles }: {
 
         <div className="flex gap-3 pt-1">
           <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
-          <Button onClick={handleSave} loading={saving} disabled={!form.employee_id} fullWidth>
-            Save Target
+          <Button
+            onClick={handleSave}
+            loading={saving}
+            disabled={
+              selectionMode === 'individual'
+                ? !form.employee_id
+                : groupEmployees.length === 0
+            }
+            fullWidth
+          >
+            {selectionMode === 'individual'
+              ? 'Save Target'
+              : `Save for ${groupEmployees.length} employee${groupEmployees.length !== 1 ? 's' : ''}`
+            }
           </Button>
         </div>
       </div>
@@ -256,8 +354,8 @@ export default function PayrollTargets({ targets, loading, onUpsert, onDelete, o
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <p className="text-sm text-brand-muted">
-          Set performance targets per employee. Only one active target per employee is allowed.
-          Targets that are not met yield no bonus.
+          Set performance targets per employee or for the whole team. Saving will replace any
+          existing active target for the selected employee(s).
         </p>
         <Button onClick={() => setModal(true)} size="sm">
           <MdAdd className="w-4 h-4" /> Add Target
@@ -295,10 +393,7 @@ export default function PayrollTargets({ targets, loading, onUpsert, onDelete, o
                   <td className="px-4 py-3 capitalize text-brand-text">{t.metric}</td>
                   <td className="px-4 py-3 capitalize text-brand-text">{t.period}</td>
                   <td className="px-4 py-3 font-medium text-brand-text whitespace-nowrap">
-                    {t.metric === 'units'
-                      ? `${t.target_value} units`
-                      : formatNaira(t.target_value)
-                    }
+                    {t.metric === 'units' ? `${t.target_value} units` : formatNaira(t.target_value)}
                   </td>
                   <td className="px-4 py-3 text-brand-muted text-xs">{REWARD_MODE_LABELS[t.reward_mode]}</td>
                   <td className="px-4 py-3 text-brand-text whitespace-nowrap">{rewardSummary(t)}</td>

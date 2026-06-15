@@ -5,13 +5,14 @@ import type { Profile } from '../types'
 import { ADMIN_EMAIL } from '../lib/constants'
 
 interface AuthContextValue {
-  session:             Session | null
-  profile:             Profile | null
-  loading:             boolean
-  isPasswordRecovery:  boolean
+  session:              Session | null
+  profile:              Profile | null
+  loading:              boolean
+  isPasswordRecovery:   boolean
   clearPasswordRecovery: () => void
-  signOut:             () => Promise<void>
-  refreshProfile:      () => Promise<void>
+  signOut:              () => Promise<void>
+  refreshProfile:       () => Promise<void>
+  updateProfileState:   (partial: Partial<Profile>) => void
 }
 
 export const AuthContext = createContext<AuthContextValue>({
@@ -22,6 +23,7 @@ export const AuthContext = createContext<AuthContextValue>({
   clearPasswordRecovery: () => {},
   signOut:               async () => {},
   refreshProfile:        async () => {},
+  updateProfileState:    () => {},
 })
 
 // Read the URL hash synchronously — before any async auth event fires.
@@ -54,8 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
 
     if (isAdmin) {
-      // Admin never needs a DB round-trip — avoids hanging if project is paused
-      setProfile({
+      // Ensure admin row exists (insert-only — never overwrite saved name/phone)
+      supabase.from('profiles')
+        .upsert(
+          { id: userId, full_name: 'Admin', role: 'admin', status: 'active' },
+          { onConflict: 'id', ignoreDuplicates: true },
+        )
+        .then(() => {})
+      // Fetch actual DB data so profile edits persist across sessions
+      const { data } = await supabase
+        .from('profiles').select('*').eq('id', userId).maybeSingle()
+      setProfile(data ?? {
         id: userId,
         full_name: 'Admin',
         phone_number: null,
@@ -64,10 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'active',
         created_at: new Date().toISOString(),
       })
-      // Upsert admin profile in background so the row exists for FK references
-      supabase.from('profiles')
-        .upsert({ id: userId, full_name: 'Admin', role: 'admin', status: 'active' }, { onConflict: 'id' })
-        .then(() => {})
       return
     }
 
@@ -139,8 +146,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null)
   }
 
+  function updateProfileState(partial: Partial<Profile>) {
+    setProfile((prev) => (prev ? { ...prev, ...partial } : prev))
+  }
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, isPasswordRecovery, clearPasswordRecovery, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, profile, loading, isPasswordRecovery, clearPasswordRecovery, signOut, refreshProfile, updateProfileState }}>
       {children}
     </AuthContext.Provider>
   )

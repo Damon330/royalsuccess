@@ -3,14 +3,16 @@ import TeamLeadDashboard from '../components/teamlead/TeamLeadDashboard'
 import TLAssign from '../components/teamlead/TLAssign'
 import TLAgents from '../components/teamlead/TLAgents'
 import ActivityPage from './ActivityPage'
+import AccountPage from '../components/shared/AccountPage'
 import BottomNav from '../components/shared/BottomNav'
-import { MdHome, MdPhoneAndroid, MdGroup, MdHistory } from 'react-icons/md'
+import { MdHome, MdPhoneAndroid, MdGroup, MdHistory, MdPerson } from 'react-icons/md'
 
 const NAV_ITEMS = [
   { to: '/teamlead',          end: true, label: 'Home',     icon: <MdHome /> },
   { to: '/teamlead/assign',              label: 'Assign',   icon: <MdPhoneAndroid /> },
   { to: '/teamlead/agents',              label: 'Agents',   icon: <MdGroup /> },
   { to: '/teamlead/activity',            label: 'Activity', icon: <MdHistory /> },
+  { to: '/teamlead/account',             label: 'Me',       icon: <MdPerson /> },
 ]
 
 export default function TeamLeadLayout() {
@@ -22,6 +24,7 @@ export default function TeamLeadLayout() {
           <Route path="assign"   element={<TLAssign />} />
           <Route path="agents"   element={<TLAgents />} />
           <Route path="activity" element={<ActivityPage />} />
+          <Route path="account"  element={<AccountPage />} />
           <Route path="*"        element={<Navigate to="/teamlead" replace />} />
         </Routes>
       </div>
