@@ -38,7 +38,7 @@ export default function Sidebar() {
   ]
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-gradient-to-b from-primary-dark via-primary to-primary-light text-white">
+    <aside className="hidden lg:flex flex-col w-64 h-full bg-gradient-to-b from-primary-dark via-primary to-primary-light text-white">
 
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">

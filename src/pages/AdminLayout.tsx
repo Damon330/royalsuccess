@@ -48,7 +48,7 @@ class PageErrorBoundary extends Component<
 
 export default function AdminLayout() {
   return (
-    <div className="flex min-h-screen bg-brand-bg">
+    <div className="flex h-screen overflow-hidden bg-brand-bg">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
         <PageErrorBoundary>
