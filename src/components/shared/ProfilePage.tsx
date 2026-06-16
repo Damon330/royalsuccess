@@ -18,9 +18,9 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-  admin:     { bg: 'bg-purple-500/20',    text: 'text-purple-300'   },
-  team_lead: { bg: 'bg-blue-500/20',      text: 'text-blue-300'     },
-  agent:     { bg: 'bg-emerald-500/20',   text: 'text-emerald-300'  },
+  admin:     { bg: 'bg-white/25',         text: 'text-white'        },
+  team_lead: { bg: 'bg-blue-500/20',      text: 'text-blue-200'     },
+  agent:     { bg: 'bg-white/15',         text: 'text-white/80'     },
 }
 
 interface Stats {
@@ -61,7 +61,7 @@ function fadeUp(delay = 0) {
 }
 
 export default function ProfilePage({ standalone = true }: { standalone?: boolean }) {
-  const { profile, session, updateProfileState } = useAuth()
+  const { profile, session, updateProfileState, refreshProfile } = useAuth()
   const [editing,  setEditing]  = useState(false)
   const [fullName, setFullName] = useState(profile?.full_name ?? '')
   const [phone,    setPhone]    = useState(profile?.phone_number ?? '')
@@ -79,14 +79,23 @@ export default function ProfilePage({ standalone = true }: { standalone?: boolea
   async function handleSave() {
     if (!profile || !fullName.trim()) return
     setSaving(true)
-    const { error } = await supabase.from('profiles')
-      .update({ full_name: fullName.trim(), phone_number: phone.trim() || null })
-      .eq('id', profile.id)
-    setSaving(false)
-    if (error) { toast.error('Failed to update profile.'); return }
-    updateProfileState({ full_name: fullName.trim(), phone_number: phone.trim() || null })
-    toast.success('Profile updated.')
-    setEditing(false)
+    try {
+      const { error } = await supabase.from('profiles')
+        .update({ full_name: fullName.trim(), phone_number: phone.trim() || null })
+        .eq('id', profile.id)
+      if (error) {
+        toast.error(`Save failed: ${error.message}`)
+        return
+      }
+      updateProfileState({ full_name: fullName.trim(), phone_number: phone.trim() || null })
+      setEditing(false)
+      toast.success('Profile saved.')
+      await refreshProfile()
+    } catch (err) {
+      toast.error('Unexpected error — check connection.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleCancel() {

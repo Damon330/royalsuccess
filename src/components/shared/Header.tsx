@@ -34,8 +34,11 @@ export default function Header({ title, subtitle }: HeaderProps) {
   const initials = (profile?.full_name ?? '?')
     .split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')
 
-  const profilePath  = profile?.role === 'admin' ? '/admin/profile'  : '/account'
-  const settingsPath = profile?.role === 'admin' ? '/admin/settings' : '/account'
+  const ADMIN_EMAIL  = import.meta.env.VITE_ADMIN_EMAIL as string
+  const isAdminUser  = profile?.role === 'admin'
+    || session?.user.email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
+  const profilePath  = isAdminUser ? '/admin/profile'  : '/account'
+  const settingsPath = isAdminUser ? '/admin/settings' : '/account'
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {

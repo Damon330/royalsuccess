@@ -56,25 +56,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
 
     if (isAdmin) {
-      // Ensure admin row exists (insert-only — never overwrite saved name/phone)
-      supabase.from('profiles')
-        .upsert(
-          { id: userId, full_name: 'Admin', role: 'admin', status: 'active' },
-          { onConflict: 'id', ignoreDuplicates: true },
-        )
-        .then(() => {})
-      // Fetch actual DB data so profile edits persist across sessions
-      const { data } = await supabase
+      // Fetch existing profile first (preserves full_name / phone_number edits)
+      const { data: existing } = await supabase
         .from('profiles').select('*').eq('id', userId).maybeSingle()
-      setProfile(data ?? {
-        id: userId,
-        full_name: 'Admin',
-        phone_number: null,
-        role: 'admin',
-        team_lead_id: null,
-        status: 'active',
-        created_at: new Date().toISOString(),
-      })
+
+      if (!existing) {
+        // First-ever login — create the admin row
+        await supabase.from('profiles').insert({
+          id: userId, full_name: 'Admin', role: 'admin', status: 'active',
+        })
+        const { data: fresh } = await supabase
+          .from('profiles').select('*').eq('id', userId).maybeSingle()
+        setProfile(fresh ?? {
+          id: userId, full_name: 'Admin', phone_number: null,
+          role: 'admin' as const, team_lead_id: null,
+          status: 'active' as const, created_at: new Date().toISOString(),
+        })
+      } else {
+        // Row exists — correct role/status in DB if the trigger set them wrong
+        if (existing.role !== 'admin' || existing.status !== 'active') {
+          await supabase.from('profiles')
+            .update({ role: 'admin', status: 'active' })
+            .eq('id', userId)
+        }
+        // Always force correct role/status in React state
+        setProfile({ ...existing, role: 'admin' as const, status: 'active' as const })
+      }
       return
     }
 
