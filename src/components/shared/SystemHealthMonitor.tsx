@@ -280,7 +280,7 @@ export function HealthStatusChip() {
       {health.latencyMs !== null && health.status === 'healthy' && (
         <span className="text-[10px] font-mono text-brand-muted">{health.latencyMs}ms</span>
       )}
-      {health.status !== 'healthy' && (
+      {health.status !== 'healthy' && health.status !== 'checking' && (
         <MdWifiOff className="w-3.5 h-3.5 text-negative flex-shrink-0" />
       )}
       <MdRefresh className={`w-3.5 h-3.5 text-brand-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ${checking ? 'animate-spin !opacity-100' : ''}`} />

@@ -17,10 +17,12 @@ export default function AdminInsights() {
   const [modelStats, setModelStats] = useState<ModelStat[]>([])
   const [loading,    setLoading]    = useState(true)
   const [dbError,    setDbError]    = useState(false)
+  const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null)
 
   async function fetchData() {
     setLoading(true)
     setDbError(false)
+    setDbErrorMsg(null)
     try {
       // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() evaluation.
       const { data, error } = await withTimeout(
@@ -45,7 +47,11 @@ export default function AdminInsights() {
       })
       stats.sort((a, b) => b.sold - a.sold)
       setModelStats(stats)
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? JSON.stringify(err)
+      setDbErrorMsg(msg)
       setDbError(true)
     } finally {
       setLoading(false)
@@ -64,13 +70,15 @@ export default function AdminInsights() {
         {dbError && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">Go to supabase.com → resume project → Refresh.</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-800">Could not load insights</p>
+              {dbErrorMsg && (
+                <p className="text-xs font-mono text-amber-700 mt-0.5 break-all">{dbErrorMsg}</p>
+              )}
             </div>
             <button onClick={fetchData}
               className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
-              <MdRefresh className="w-4 h-4" /> Refresh
+              <MdRefresh className="w-4 h-4" /> Retry
             </button>
           </div>
         )}

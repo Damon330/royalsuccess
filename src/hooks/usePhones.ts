@@ -11,9 +11,10 @@ const QUERY_TIMEOUT  = 15_000
 const MUTATE_TIMEOUT = 12000
 
 export function usePhones(assignedTo?: string, statusFilter?: import('../types').PhoneStatus) {
-  const [phones,  setPhones]  = useState<Phone[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dbError, setDbError] = useState(false)
+  const [phones,     setPhones]     = useState<Phone[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [dbError,    setDbError]    = useState(false)
+  const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null)
 
   // Tracks phone IDs currently mid-mutation so we block duplicate operations
   const mutatingIds = useRef<Set<string>>(new Set())
@@ -21,10 +22,17 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
   const fetchPhones = useCallback(async () => {
     setLoading(true)
     setDbError(false)
+    setDbErrorMsg(null)
     try {
       let result: Phone[]
 
       if (!assignedTo) {
+        // Verify session before admin RPC — catches stale/expired tokens early.
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
+        if (sessionErr || !session) {
+          throw new Error(sessionErr?.message ?? 'No active session — please sign out and back in')
+        }
+
         // Admin context — use SECURITY DEFINER RPC that bypasses RLS entirely.
         // Eliminates per-row is_admin() evaluation and cold-start RLS timeouts.
         const { data, error } = await withTimeout(
@@ -50,7 +58,11 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
       }
 
       setPhones(result)
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? JSON.stringify(err)
+      setDbErrorMsg(msg)
       setPhones([])
       setDbError(true)
     } finally {
@@ -435,6 +447,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     phones,
     loading,
     dbError,
+    dbErrorMsg,
     markAsSold,
     returnToTeamLead,
     addPhone,

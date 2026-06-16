@@ -31,9 +31,10 @@ function invalidateCache() {
 }
 
 export function useProfiles() {
-  const [profiles, setProfiles] = useState<Profile[]>(() => getCached() ?? [])
-  const [loading,  setLoading]  = useState(() => getCached() === null)
-  const [dbError,  setDbError]  = useState(false)
+  const [profiles,   setProfiles]   = useState<Profile[]>(() => getCached() ?? [])
+  const [loading,    setLoading]    = useState(() => getCached() === null)
+  const [dbError,    setDbError]    = useState(false)
+  const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null)
   const isFirstLoad  = useRef(true)
   // Unique channel name per hook instance — prevents Supabase from reusing an
   // already-subscribed channel when multiple components call useProfiles() simultaneously.
@@ -45,7 +46,14 @@ export function useProfiles() {
 
     setLoading(true)
     setDbError(false)
+    setDbErrorMsg(null)
     try {
+      // Verify session before admin RPC — catches stale/expired tokens early.
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
+      if (sessionErr || !session) {
+        throw new Error(sessionErr?.message ?? 'No active session — please sign out and back in')
+      }
+
       // SECURITY DEFINER RPC — bypasses RLS, is_admin() checked once inside the function.
       // Fixes "Database connection failed" caused by per-row RLS evaluation timeouts.
       const { data, error } = await withTimeout(
@@ -56,7 +64,11 @@ export function useProfiles() {
       const rows = (data as Profile[] | null) ?? []
       setCache(rows)
       setProfiles(rows)
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? JSON.stringify(err)
+      setDbErrorMsg(msg)
       setDbError(true)
     } finally {
       setLoading(false)
@@ -148,7 +160,7 @@ export function useProfiles() {
 
   return {
     profiles, teamLeads, agents, pendingUsers,
-    loading, dbError,
+    loading, dbError, dbErrorMsg,
     approveUser, updateRole,
     refetch: () => fetchProfiles(true),
   }

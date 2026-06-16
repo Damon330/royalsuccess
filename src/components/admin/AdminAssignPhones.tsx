@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '../shared/Header'
 import Button from '../shared/Button'
 import Badge from '../shared/Badge'
@@ -7,6 +7,7 @@ import ScannerModal from '../shared/ScannerModal'
 import { usePhones } from '../../hooks/usePhones'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useAuth } from '../../hooks/useAuth'
+import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import {
   MdCheckBox, MdCheckBoxOutlineBlank, MdPhoneAndroid,
@@ -14,8 +15,8 @@ import {
 } from 'react-icons/md'
 
 export default function AdminAssignPhones() {
-  const { phones, loading: phonesLoading, dbError: phonesDbError, assignPhones, lookupByBarcode, refetch: refetchPhones } = usePhones(undefined, 'in_stock')
-  const { profiles, loading: profilesLoading, dbError: profilesDbError } = useProfiles()
+  const { phones, loading: phonesLoading, dbError: phonesDbError, dbErrorMsg: phonesErrMsg, assignPhones, lookupByBarcode, refetch: refetchPhones } = usePhones(undefined, 'in_stock')
+  const { profiles, loading: profilesLoading, dbError: profilesDbError, dbErrorMsg: profilesErrMsg, refetch: refetchProfiles } = useProfiles()
   const { profile: adminProfile } = useAuth()
 
   const [selectedUser,   setSelectedUser]   = useState('')
@@ -23,8 +24,38 @@ export default function AdminAssignPhones() {
   const [selectedPhones, setSelectedPhones] = useState<string[]>([])
   const [assigning,      setAssigning]      = useState(false)
   const [showScanner,    setShowScanner]    = useState(false)
+  const [diagInfo,       setDiagInfo]       = useState<string | null>(null)
 
   const dbError       = phonesDbError || profilesDbError
+
+  // When an error appears, run a health check to surface the exact Supabase diagnosis.
+  useEffect(() => {
+    if (!dbError) { setDiagInfo(null); return }
+    let cancelled = false
+    async function runDiag() {
+      try {
+        const [{ data: health, error: hErr }, { data: { session } }] = await Promise.all([
+          supabase.rpc('health_check'),
+          supabase.auth.getSession(),
+        ])
+        if (cancelled) return
+        if (hErr) {
+          setDiagInfo(`health_check failed: ${hErr.message}`)
+        } else {
+          const email  = (health as { auth_email?: string } | null)?.auth_email ?? 'unknown'
+          const isAdmin = (health as { is_admin?: boolean } | null)?.is_admin
+          const expiry  = session?.expires_at
+            ? new Date(session.expires_at * 1000).toLocaleTimeString()
+            : 'no session'
+          setDiagInfo(`DB reachable ✓ · auth_email: ${email} · is_admin: ${String(isAdmin)} · token expires: ${expiry}`)
+        }
+      } catch (e) {
+        if (!cancelled) setDiagInfo(`Diag fetch threw: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    runDiag()
+    return () => { cancelled = true }
+  }, [dbError])
   const inStockPhones = phones.filter((p) => p.status === 'in_stock')
   const activeUsers   = profiles.filter((p) => p.status === 'active' && p.role !== 'admin')
   const loading       = phonesLoading || profilesLoading
@@ -72,18 +103,36 @@ export default function AdminAssignPhones() {
       <div className="p-6 space-y-5">
 
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Go to <strong>supabase.com</strong> → resume project → Refresh.
-              </p>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+            <div className="flex items-start gap-3">
+              <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">Could not load data</p>
+                {phonesErrMsg && (
+                  <p className="text-xs font-mono text-amber-700 mt-0.5 break-all">Phones: {phonesErrMsg}</p>
+                )}
+                {profilesErrMsg && (
+                  <p className="text-xs font-mono text-amber-700 mt-0.5 break-all">Profiles: {profilesErrMsg}</p>
+                )}
+                {diagInfo && (
+                  <p className="text-xs font-mono text-amber-600 mt-1 break-all">Diag: {diagInfo}</p>
+                )}
+              </div>
+              <button
+                onClick={() => { refetchPhones(); refetchProfiles() }}
+                className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              >
+                <MdRefresh className="w-4 h-4" /> Retry
+              </button>
             </div>
-            <button onClick={refetchPhones}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
-              <MdRefresh className="w-4 h-4" /> Refresh
-            </button>
+            {(phonesErrMsg?.includes('session') || phonesErrMsg?.includes('authenticated')) && (
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="text-xs text-red-600 hover:text-red-800 underline ml-8"
+              >
+                Sign out and sign back in to refresh your session
+              </button>
+            )}
           </div>
         )}
 
