@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { tracked } from '../lib/telemetry'
+import { logDbError } from '../lib/errorLog'
 import type { Profile } from '../types'
 
 export const AGENTS_PAGE_SIZE = 20
@@ -52,7 +53,10 @@ async function fetchAgentsPage(page: number, filter: AgentsFilter): Promise<Agen
   // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() call.
   // Already excludes the admin row (WHERE role != 'admin' inside the function).
   const { data, error } = await withTimeout(supabase.rpc('admin_get_profiles'), 15_000)
-  if (error) throw new Error(error.message)
+  if (error) {
+    logDbError('useAgentsPage', error.message, { code: error.code, detail: error.details })
+    throw new Error(error.message)
+  }
 
   let profiles = (data as Profile[]) ?? []
 

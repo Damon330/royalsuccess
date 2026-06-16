@@ -4,6 +4,7 @@ import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
 import { sendNotification } from '../lib/sendNotification'
 import { checkRateLimit, RATE_LIMITS } from '../lib/rateLimit'
+import { logDbError } from '../lib/errorLog'
 import type { Phone, Profile } from '../types'
 import toast from 'react-hot-toast'
 
@@ -61,9 +62,9 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
 
       setPhones(result)
     } catch (err) {
-      const msg = err instanceof Error
-        ? err.message
-        : (err as { message?: string })?.message ?? JSON.stringify(err)
+      const e   = err as { message?: string; code?: string; details?: string }
+      const msg = err instanceof Error ? err.message : e?.message ?? JSON.stringify(err)
+      logDbError('usePhones', msg, { code: e?.code, detail: e?.details })
       setDbErrorMsg(msg)
       setPhones([])
       setDbError(true)

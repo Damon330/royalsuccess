@@ -15,6 +15,7 @@ import ActivityPage from './ActivityPage'
 import PayrollPage from '../components/admin/payroll/PayrollPage'
 import ProfilePage from '../components/shared/ProfilePage'
 import SettingsPage from '../components/shared/SettingsPage'
+import DiagnosticsPage from './DiagnosticsPage'
 
 // Catches rendering errors in any admin page so the layout never goes blank
 class PageErrorBoundary extends Component<
@@ -70,9 +71,10 @@ export default function AdminLayout() {
             <Route path="receipts"  element={<AdminReceipts />} />
             <Route path="activity"  element={<ActivityPage />} />
             <Route path="payroll"   element={<PayrollPage />} />
-            <Route path="profile"   element={<ProfilePage />} />
-            <Route path="settings"  element={<SettingsPage />} />
-            <Route path="*"         element={<Navigate to="dashboard" replace />} />
+            <Route path="profile"      element={<ProfilePage />} />
+            <Route path="settings"     element={<SettingsPage />} />
+            <Route path="diagnostics"  element={<DiagnosticsPage />} />
+            <Route path="*"            element={<Navigate to="dashboard" replace />} />
             </Routes>
           </PageErrorBoundary>
         </main>

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { tracked } from '../lib/telemetry'
+import { logDbError } from '../lib/errorLog'
 import type { Phone, PhoneStatus } from '../types'
 
 export const INVENTORY_PAGE_SIZE = 25
@@ -67,10 +68,11 @@ function inventoryKey(page: number, filter: InventoryFilter) {
 }
 
 async function fetchPage(page: number, filter: InventoryFilter): Promise<InventoryPage> {
-  // SECURITY DEFINER RPC — bypasses RLS entirely, no per-row is_admin() evaluation.
-  // Client-side filter+paginate is fine for typical inventory sizes (<1 000 phones).
   const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 15_000)
-  if (error) throw new Error(error.message)
+  if (error) {
+    logDbError('useInventoryPage', error.message, { code: error.code, detail: error.details })
+    throw new Error(error.message)
+  }
 
   let phones = (data as Phone[]) ?? []
 

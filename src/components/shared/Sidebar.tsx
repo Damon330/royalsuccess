@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
   MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt, MdTrendingUp,
-  MdAttachMoney, MdPerson, MdSettings,
+  MdAttachMoney, MdPerson, MdSettings, MdBugReport,
 } from 'react-icons/md'
 
 interface NavItem {
@@ -102,8 +102,9 @@ export default function Sidebar() {
     {
       label: 'Account',
       items: [
-        { path: '/admin/profile',  label: 'Profile',  Icon: MdPerson   },
-        { path: '/admin/settings', label: 'Settings', Icon: MdSettings },
+        { path: '/admin/profile',      label: 'Profile',      Icon: MdPerson    },
+        { path: '/admin/settings',     label: 'Settings',     Icon: MdSettings  },
+        { path: '/admin/diagnostics',  label: 'Diagnostics',  Icon: MdBugReport },
       ],
     },
   ]

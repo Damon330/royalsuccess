@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
@@ -9,6 +9,7 @@ import Pagination from '../shared/Pagination'
 import Spinner from '../shared/Spinner'
 import { supabase } from '../../lib/supabase'
 import { withTimeout } from '../../lib/withTimeout'
+import { logDbError } from '../../lib/errorLog'
 import type { AdminDashboardStats } from '../../types'
 import {
   MdInventory2, MdStorefront, MdLocalShipping, MdCheckCircle,
@@ -171,6 +172,13 @@ export default function AdminDashboard() {
     queryFn:   fetchDashboard,
     staleTime: DASHBOARD_STALE_MS,
   })
+
+  useEffect(() => {
+    if (dbErrorObj) {
+      const e = dbErrorObj as { message?: string; code?: string; details?: string }
+      logDbError('AdminDashboard', e?.message ?? String(dbErrorObj), { code: e?.code, detail: e?.details })
+    }
+  }, [dbErrorObj])
 
   const stats       = data?.stats       ?? DEFAULT_STATS
   const team        = data?.team        ?? []

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { playAlertSound, primeAudioContext } from '../lib/saleSound'
+import { logDbError } from '../lib/errorLog'
 import type { Profile, Role } from '../types'
 import toast from 'react-hot-toast'
 
@@ -59,9 +60,9 @@ export function useProfiles() {
       setCache(rows)
       setProfiles(rows)
     } catch (err) {
-      const msg = err instanceof Error
-        ? err.message
-        : (err as { message?: string })?.message ?? JSON.stringify(err)
+      const e   = err as { message?: string; code?: string; details?: string }
+      const msg = err instanceof Error ? err.message : e?.message ?? JSON.stringify(err)
+      logDbError('useProfiles', msg, { code: e?.code, detail: e?.details })
       setDbErrorMsg(msg)
       setDbError(true)
     } finally {
