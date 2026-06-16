@@ -48,12 +48,6 @@ export function useProfiles() {
     setDbError(false)
     setDbErrorMsg(null)
     try {
-      // Verify session before admin RPC — catches stale/expired tokens early.
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
-      if (sessionErr || !session) {
-        throw new Error(sessionErr?.message ?? 'No active session — please sign out and back in')
-      }
-
       // SECURITY DEFINER RPC — bypasses RLS, is_admin() checked once inside the function.
       // Fixes "Database connection failed" caused by per-row RLS evaluation timeouts.
       const { data, error } = await withTimeout(

@@ -8,6 +8,7 @@ import Badge from '../shared/Badge'
 import Pagination from '../shared/Pagination'
 import Spinner from '../shared/Spinner'
 import { supabase } from '../../lib/supabase'
+import { withTimeout } from '../../lib/withTimeout'
 import type { AdminDashboardStats } from '../../types'
 import {
   MdInventory2, MdStorefront, MdLocalShipping, MdCheckCircle,
@@ -116,12 +117,12 @@ function RingMetric({ percent, color, label, value, total }: {
 
 async function fetchDashboard(): Promise<DashboardData> {
   const [statsRes, teamRes, alertsRes] = await Promise.all([
-    supabase.rpc('admin_dashboard_stats'),
-    supabase.rpc('admin_team_overview'),
-    supabase.rpc('admin_stale_alerts', {
+    withTimeout(supabase.rpc('admin_dashboard_stats'), 15_000),
+    withTimeout(supabase.rpc('admin_team_overview'), 15_000),
+    withTimeout(supabase.rpc('admin_stale_alerts', {
       p_agent_days:    AGENT_STALE_DAYS,
       p_teamlead_days: TEAMLEAD_STALE_DAYS,
-    }),
+    }), 15_000),
   ])
 
   if (statsRes.error)  throw new Error(statsRes.error.message)

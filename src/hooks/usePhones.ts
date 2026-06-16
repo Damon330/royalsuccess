@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import { logActivity } from '../lib/logActivity'
@@ -19,6 +19,14 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
   // Tracks phone IDs currently mid-mutation so we block duplicate operations
   const mutatingIds = useRef<Set<string>>(new Set())
 
+  // Unique channel name per hook instance so React StrictMode double-invoke
+  // never creates two subscriptions on the same channel name simultaneously.
+  const channelName = useMemo(
+    () => `phones-${assignedTo ?? 'all'}-${statusFilter ?? 'all'}-${Math.random().toString(36).slice(2)}`,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
   const fetchPhones = useCallback(async () => {
     setLoading(true)
     setDbError(false)
@@ -27,12 +35,6 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
       let result: Phone[]
 
       if (!assignedTo) {
-        // Verify session before admin RPC — catches stale/expired tokens early.
-        const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
-        if (sessionErr || !session) {
-          throw new Error(sessionErr?.message ?? 'No active session — please sign out and back in')
-        }
-
         // Admin context — use SECURITY DEFINER RPC that bypasses RLS entirely.
         // Eliminates per-row is_admin() evaluation and cold-start RLS timeouts.
         const { data, error } = await withTimeout(
@@ -74,7 +76,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     fetchPhones()
 
     const channel = supabase
-      .channel(`phones-${assignedTo ?? 'all'}-${statusFilter ?? 'all'}`)
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'phones' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           // Remove any temp optimistic entry before adding the confirmed row
@@ -91,7 +93,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
       .subscribe()
 
     return () => { channel.unsubscribe(); supabase.removeChannel(channel) }
-  }, [fetchPhones])
+  }, [fetchPhones, channelName])
 
   // ── Lookup ──────────────────────────────────────────────────
   async function lookupByBarcode(barcode: string): Promise<Phone | null> {

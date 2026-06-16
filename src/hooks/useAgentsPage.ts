@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { withTimeout } from '../lib/withTimeout'
 import { tracked } from '../lib/telemetry'
 import type { Profile } from '../types'
 
@@ -50,7 +51,7 @@ function agentsKey(page: number, filter: AgentsFilter) {
 async function fetchAgentsPage(page: number, filter: AgentsFilter): Promise<AgentsPage> {
   // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() call.
   // Already excludes the admin row (WHERE role != 'admin' inside the function).
-  const { data, error } = await supabase.rpc('admin_get_profiles')
+  const { data, error } = await withTimeout(supabase.rpc('admin_get_profiles'), 15_000)
   if (error) throw new Error(error.message)
 
   let profiles = (data as Profile[]) ?? []
