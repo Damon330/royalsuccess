@@ -359,9 +359,10 @@ BEGIN
       EXECUTE format('CREATE POLICY "payroll_admin_all" ON public.%I
         FOR ALL USING (is_admin()) WITH CHECK (is_admin())', tbl);
       IF tbl = 'payroll_entries' THEN
-        EXECUTE 'DROP POLICY IF EXISTS "payroll_entries_read_own" ON public.payroll_entries';
+        EXECUTE 'DROP POLICY IF EXISTS "payroll_entries_read_own"    ON public.payroll_entries';
+        EXECUTE 'DROP POLICY IF EXISTS "employee_read_own_entry"     ON public.payroll_entries';
         EXECUTE 'CREATE POLICY "payroll_entries_read_own" ON public.payroll_entries
-          FOR SELECT USING (agent_id = auth.uid())';
+          FOR SELECT USING (employee_id = auth.uid())';
       END IF;
     END IF;
   END LOOP;
