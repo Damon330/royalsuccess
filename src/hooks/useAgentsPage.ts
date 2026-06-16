@@ -52,7 +52,7 @@ function agentsKey(page: number, filter: AgentsFilter) {
 async function fetchAgentsPage(page: number, filter: AgentsFilter): Promise<AgentsPage> {
   // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() call.
   // Already excludes the admin row (WHERE role != 'admin' inside the function).
-  const { data, error } = await withTimeout(supabase.rpc('admin_get_profiles'), 15_000)
+  const { data, error } = await withTimeout(supabase.rpc('admin_get_profiles'), 30_000)
   if (error) {
     logDbError('useAgentsPage', error.message, { code: error.code, detail: error.details })
     throw new Error(error.message)

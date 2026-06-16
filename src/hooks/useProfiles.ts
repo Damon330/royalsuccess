@@ -6,7 +6,7 @@ import { logDbError } from '../lib/errorLog'
 import type { Profile, Role } from '../types'
 import toast from 'react-hot-toast'
 
-const QUERY_TIMEOUT  = 15_000
+const QUERY_TIMEOUT  = 30_000
 const MUTATE_TIMEOUT = 12000
 const CACHE_TTL_MS   = 5 * 60 * 1000  // 5 minutes
 

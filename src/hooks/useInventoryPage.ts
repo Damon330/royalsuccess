@@ -68,7 +68,7 @@ function inventoryKey(page: number, filter: InventoryFilter) {
 }
 
 async function fetchPage(page: number, filter: InventoryFilter): Promise<InventoryPage> {
-  const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 15_000)
+  const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 30_000)
   if (error) {
     logDbError('useInventoryPage', error.message, { code: error.code, detail: error.details })
     throw new Error(error.message)

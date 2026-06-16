@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { withTimeout } from '../lib/withTimeout'
 import { queryClient } from '../lib/queryClient'
 
 export type HealthStatus = 'checking' | 'healthy' | 'slow' | 'degraded' | 'down'
@@ -57,7 +58,7 @@ export function useSystemHealth() {
     // If the RPC doesn't exist yet (migration not run), fall back to raw query.
     const t0 = Date.now()
     try {
-      const { data, error } = await supabase.rpc('health_check')
+      const { data, error } = await withTimeout(supabase.rpc('health_check'), 35_000)
       const latency = Date.now() - t0
 
       if (error) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
@@ -118,12 +118,12 @@ function RingMetric({ percent, color, label, value, total }: {
 
 async function fetchDashboard(): Promise<DashboardData> {
   const [statsRes, teamRes, alertsRes] = await Promise.all([
-    withTimeout(supabase.rpc('admin_dashboard_stats'), 15_000),
-    withTimeout(supabase.rpc('admin_team_overview'), 15_000),
+    withTimeout(supabase.rpc('admin_dashboard_stats'), 30_000),
+    withTimeout(supabase.rpc('admin_team_overview'), 30_000),
     withTimeout(supabase.rpc('admin_stale_alerts', {
       p_agent_days:    AGENT_STALE_DAYS,
       p_teamlead_days: TEAMLEAD_STALE_DAYS,
-    }), 15_000),
+    }), 30_000),
   ])
 
   if (statsRes.error)  throw new Error(statsRes.error.message)
@@ -156,9 +156,11 @@ async function fetchDashboard(): Promise<DashboardData> {
 
 export default function AdminDashboard() {
   const { profile } = useAuth()
-  const [alertsOpen, setAlertsOpen] = useState(true)
-  const [alertsPage, setAlertsPage] = useState(1)
-  const [teamPage,   setTeamPage]   = useState(1)
+  const [alertsOpen,   setAlertsOpen]   = useState(true)
+  const [alertsPage,   setAlertsPage]   = useState(1)
+  const [teamPage,     setTeamPage]     = useState(1)
+  const [loadingMs,    setLoadingMs]    = useState(0)
+  const loadTimerRef = useRef<ReturnType<typeof setInterval>>()
 
   const {
     data,
@@ -172,6 +174,18 @@ export default function AdminDashboard() {
     queryFn:   fetchDashboard,
     staleTime: DASHBOARD_STALE_MS,
   })
+
+  // Track how long the initial load is taking so we can show a "waking up" hint
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingMs(0)
+      loadTimerRef.current = setInterval(() => setLoadingMs(ms => ms + 1000), 1000)
+    } else {
+      clearInterval(loadTimerRef.current)
+      setLoadingMs(0)
+    }
+    return () => clearInterval(loadTimerRef.current)
+  }, [isLoading])
 
   useEffect(() => {
     if (dbErrorObj) {
@@ -215,6 +229,22 @@ export default function AdminDashboard() {
 
       <div className="p-4 sm:p-6 space-y-5">
 
+        {/* ── Cold-start / slow-load indicator ────────────────────────── */}
+        {isLoading && loadingMs >= 5000 && (
+          <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30 rounded-card p-4 flex items-center gap-3">
+            <Spinner size="sm" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                Waking up the database… ({Math.round(loadingMs / 1000)}s)
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                Supabase free-tier databases sleep after inactivity and take up to 30 seconds to start.
+                Please wait — data will load automatically.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── DB error banner ──────────────────────────────────────────── */}
         {dbError && (
           <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-card p-4 flex items-start gap-3">
@@ -227,9 +257,10 @@ export default function AdminDashboard() {
                 {(dbErrorObj as Error)?.message ?? 'Unknown error'}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                If this says "permission denied", run{' '}
-                <span className="font-mono font-bold">supabase/v2-full-migration.sql</span>
-                {' '}in the Supabase SQL Editor, then click Retry.
+                {(dbErrorObj as Error)?.message?.includes('timed out')
+                  ? 'Database took too long to respond — your Supabase project may have been sleeping. Click Retry; it should load on the second attempt.'
+                  : 'If this says "permission denied", run supabase/v2-full-migration.sql in the Supabase SQL Editor, then Retry.'}
+                {' '}Open <strong>Diagnostics</strong> (sidebar → Account) for a full system check.
               </p>
             </div>
             <button
