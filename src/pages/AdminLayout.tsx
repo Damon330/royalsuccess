@@ -1,5 +1,7 @@
 import { Component, ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { SystemHealthProvider } from '../context/SystemHealthContext'
+import SystemHealthMonitor from '../components/shared/SystemHealthMonitor'
 import Sidebar from '../components/shared/Sidebar'
 import AdminDashboard from '../components/admin/AdminDashboard'
 import AdminInventory from '../components/admin/AdminInventory'
@@ -50,11 +52,14 @@ class PageErrorBoundary extends Component<
 
 export default function AdminLayout() {
   return (
-    <div className="flex h-screen overflow-hidden bg-brand-bg transition-colors duration-200">
-      <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <PageErrorBoundary>
-          <Routes>
+    <SystemHealthProvider>
+      <div className="flex h-screen overflow-hidden bg-brand-bg transition-colors duration-200">
+        <Sidebar />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* System health banner — auto-shows when DB or auth has issues */}
+          <SystemHealthMonitor />
+          <PageErrorBoundary>
+            <Routes>
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="inventory" element={<AdminInventory />} />
             <Route path="agents"    element={<AdminAgents />} />
@@ -68,9 +73,10 @@ export default function AdminLayout() {
             <Route path="profile"   element={<ProfilePage />} />
             <Route path="settings"  element={<SettingsPage />} />
             <Route path="*"         element={<Navigate to="dashboard" replace />} />
-          </Routes>
-        </PageErrorBoundary>
-      </main>
-    </div>
+            </Routes>
+          </PageErrorBoundary>
+        </main>
+      </div>
+    </SystemHealthProvider>
   )
 }

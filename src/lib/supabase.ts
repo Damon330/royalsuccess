@@ -18,10 +18,18 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     params: { eventsPerSecond: 10 },
   },
   global: {
-    // Aggressive fetch timeout — don't let a single query hang the app
-    fetch: (url, opts) => {
+    // Hard 12s timeout on every request so nothing hangs the app forever.
+    // Chains with any signal the caller already set (e.g. Supabase Realtime internals).
+    fetch: (url, opts = {}) => {
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 12_000)
+      const timer = setTimeout(() => controller.abort(new Error('Request timed out after 12 s')), 12_000)
+
+      // If the caller passed their own abort signal, forward its abort to ours
+      const callerSignal = (opts as RequestInit).signal
+      if (callerSignal && !callerSignal.aborted) {
+        callerSignal.addEventListener('abort', () => controller.abort(callerSignal.reason), { once: true })
+      }
+
       return fetch(url, { ...opts, signal: controller.signal })
         .finally(() => clearTimeout(timer))
     },

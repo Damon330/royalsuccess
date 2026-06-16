@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
 import { useProfiles } from '../../hooks/useProfiles'
+import { HealthStatusChip } from './SystemHealthMonitor'
 import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
@@ -158,6 +159,11 @@ export default function Sidebar() {
             <p className="text-[11px] text-brand-muted font-medium">Administrator</p>
           </div>
         </motion.div>
+
+        {/* System health indicator */}
+        <div className="mb-1">
+          <HealthStatusChip />
+        </div>
 
         <button
           onClick={handleSignOut}
