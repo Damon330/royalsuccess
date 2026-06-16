@@ -48,32 +48,32 @@ function agentsKey(page: number, filter: AgentsFilter) {
 }
 
 async function fetchAgentsPage(page: number, filter: AgentsFilter): Promise<AgentsPage> {
-  const from = (page - 1) * AGENTS_PAGE_SIZE
-  const to   = from + AGENTS_PAGE_SIZE - 1
-
-  let q = supabase
-    .from('profiles')
-    .select('*', { count: 'exact' })
-    .neq('role', 'admin')
-    .order('created_at', { ascending: false })
-    .range(from, to)
-
-  if (filter.role && filter.role !== 'all') {
-    q = q.eq('role', filter.role)
-  }
-  if (filter.status && filter.status !== 'all') {
-    q = q.eq('status', filter.status)
-  }
-  if (filter.search?.trim()) {
-    q = q.ilike('full_name', `%${filter.search.trim()}%`)
-  }
-
-  const { data, error, count } = await q
+  // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() call.
+  // Already excludes the admin row (WHERE role != 'admin' inside the function).
+  const { data, error } = await supabase.rpc('admin_get_profiles')
   if (error) throw new Error(error.message)
 
-  const totalCount = count ?? 0
+  let profiles = (data as Profile[]) ?? []
+
+  // Newest first (RPC returns role, full_name order; re-sort client-side)
+  profiles.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  if (filter.role && filter.role !== 'all') {
+    profiles = profiles.filter((p) => p.role === filter.role)
+  }
+  if (filter.status && filter.status !== 'all') {
+    profiles = profiles.filter((p) => p.status === filter.status)
+  }
+  if (filter.search?.trim()) {
+    const s = filter.search.trim().toLowerCase()
+    profiles = profiles.filter((p) => p.full_name.toLowerCase().includes(s))
+  }
+
+  const totalCount = profiles.length
+  const from       = (page - 1) * AGENTS_PAGE_SIZE
+
   return {
-    profiles:   (data as Profile[]) ?? [],
+    profiles:   profiles.slice(from, from + AGENTS_PAGE_SIZE),
     totalCount,
     totalPages: Math.max(1, Math.ceil(totalCount / AGENTS_PAGE_SIZE)),
   }

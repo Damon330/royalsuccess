@@ -66,32 +66,32 @@ function inventoryKey(page: number, filter: InventoryFilter) {
 }
 
 async function fetchPage(page: number, filter: InventoryFilter): Promise<InventoryPage> {
-  const from = (page - 1) * INVENTORY_PAGE_SIZE
-  const to   = from + INVENTORY_PAGE_SIZE - 1
+  // Use SECURITY DEFINER RPC — bypasses RLS entirely, no per-row is_admin() evaluation.
+  // Client-side filter+paginate is fine for typical inventory sizes (<1 000 phones).
+  const { data, error } = await supabase.rpc('admin_get_phones')
+  if (error) throw new Error(error.message)
 
-  let q = supabase
-    .from('phones')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to)
+  let phones = (data as Phone[]) ?? []
 
   if (filter.status && filter.status !== 'all') {
-    q = q.eq('status', filter.status)
+    phones = phones.filter((p) => p.status === filter.status)
   }
 
   if (filter.search?.trim()) {
-    const s = filter.search.trim()
-    q = q.or(
-      `model.ilike.%${s}%,imei.ilike.%${s}%,serial_number.ilike.%${s}%,barcode.ilike.%${s}%`
+    const s = filter.search.trim().toLowerCase()
+    phones = phones.filter((p) =>
+      p.model?.toLowerCase().includes(s) ||
+      p.imei?.toLowerCase().includes(s) ||
+      p.serial_number?.toLowerCase().includes(s) ||
+      p.barcode?.toLowerCase().includes(s),
     )
   }
 
-  const { data, error, count } = await q
-  if (error) throw new Error(error.message)
+  const totalCount = phones.length
+  const from       = (page - 1) * INVENTORY_PAGE_SIZE
 
-  const totalCount = count ?? 0
   return {
-    phones:     (data as Phone[]) ?? [],
+    phones:     phones.slice(from, from + INVENTORY_PAGE_SIZE),
     totalCount,
     totalPages: Math.max(1, Math.ceil(totalCount / INVENTORY_PAGE_SIZE)),
   }

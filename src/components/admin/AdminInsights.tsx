@@ -22,9 +22,10 @@ export default function AdminInsights() {
     setLoading(true)
     setDbError(false)
     try {
+      // SECURITY DEFINER RPC — bypasses RLS, no per-row is_admin() evaluation.
       const { data, error } = await withTimeout(
-        supabase.from('phones').select('model, status'),
-        8000,
+        supabase.rpc('admin_get_phones'),
+        15_000,
       )
       if (error) throw error
 

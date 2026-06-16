@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import Header from '../shared/Header'
 import Badge from '../shared/Badge'
 import { supabase } from '../../lib/supabase'
-import { withTimeout } from '../../lib/withTimeout'
 import type { Profile, Phone } from '../../types'
 import { MdBarChart, MdWarning, MdRefresh } from 'react-icons/md'
 
@@ -15,40 +14,42 @@ interface AgentReport {
 }
 
 export default function AdminReports() {
-  const [reports, setReports] = useState<AgentReport[]>([])
-  const [dbError, setDbError] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [reports,      setReports]      = useState<AgentReport[]>([])
+  const [dbError,      setDbError]      = useState(false)
+  const [dbErrorMsg,   setDbErrorMsg]   = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(true)
 
   async function fetchReports() {
     setLoading(true)
     setDbError(false)
+    setDbErrorMsg(null)
     try {
-      const [{ data: profiles, error: e1 }, { data: phones, error: e2 }] = await Promise.all([
-        withTimeout(
-          supabase.from('profiles').select('*').in('role', ['agent', 'team_lead']).eq('status', 'active'),
-          8000
-        ),
-        withTimeout(
-          supabase.from('phones').select('*').not('assigned_to', 'is', null),
-          8000
-        ),
+      // SECURITY DEFINER RPCs — bypass RLS, is_admin() checked once inside each function.
+      const [phonesRes, profilesRes] = await Promise.all([
+        supabase.rpc('admin_get_phones'),
+        supabase.rpc('admin_get_profiles'),
       ])
-      if (e1) throw e1
-      if (e2) throw e2
-      if (!profiles || !phones) return
+      if (phonesRes.error)   throw phonesRes.error
+      if (profilesRes.error) throw profilesRes.error
 
-      const rows: AgentReport[] = profiles.map((p: Profile) => {
-        const myPhones = phones.filter((ph: Phone) => ph.assigned_to === p.id)
-        const sold = myPhones.filter((ph: Phone) => ph.status === 'sold').length
-        const assigned = myPhones.length
+      const phones:   Phone[]   = (phonesRes.data   as Phone[]   | null) ?? []
+      const profiles: Profile[] = (profilesRes.data as Profile[] | null) ?? []
+
+      const active = profiles.filter((p) => p.role !== 'admin' && p.status === 'active')
+
+      const rows: AgentReport[] = active.map((p: Profile) => {
+        const myPhones  = phones.filter((ph: Phone) => ph.assigned_to === p.id)
+        const sold      = myPhones.filter((ph: Phone) => ph.status === 'sold').length
+        const assigned  = myPhones.length
         const remaining = assigned - sold
-        const sellRate = assigned > 0 ? Math.round((sold / assigned) * 100) : 0
+        const sellRate  = assigned > 0 ? Math.round((sold / assigned) * 100) : 0
         return { profile: p, assigned, sold, remaining, sellRate }
       })
       rows.sort((a, b) => b.sold - a.sold)
       setReports(rows)
     } catch (err) {
-      console.error('Reports fetch error:', err)
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? 'Unknown error'
+      setDbErrorMsg(msg)
       setDbError(true)
     } finally {
       setLoading(false)
@@ -66,11 +67,10 @@ export default function AdminReports() {
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Your Supabase project may be paused. Go to <strong>supabase.com</strong> → open your project → click{' '}
-                <strong>"Resume project"</strong> → wait 30 seconds → click Refresh.
-              </p>
+              <p className="text-sm font-semibold text-amber-800">Failed to load report data</p>
+              {dbErrorMsg && (
+                <p className="text-xs text-amber-700 mt-0.5 font-mono break-all">{dbErrorMsg}</p>
+              )}
             </div>
             <button
               onClick={fetchReports}

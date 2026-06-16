@@ -5,7 +5,7 @@ import { playAlertSound, primeAudioContext } from '../lib/saleSound'
 import type { Profile, Role } from '../types'
 import toast from 'react-hot-toast'
 
-const QUERY_TIMEOUT  = 8000
+const QUERY_TIMEOUT  = 15_000
 const MUTATE_TIMEOUT = 12000
 const CACHE_TTL_MS   = 5 * 60 * 1000  // 5 minutes
 
@@ -46,12 +46,14 @@ export function useProfiles() {
     setLoading(true)
     setDbError(false)
     try {
+      // SECURITY DEFINER RPC — bypasses RLS, is_admin() checked once inside the function.
+      // Fixes "Database connection failed" caused by per-row RLS evaluation timeouts.
       const { data, error } = await withTimeout(
-        supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabase.rpc('admin_get_profiles'),
         QUERY_TIMEOUT,
       )
       if (error) throw error
-      const rows = data ?? []
+      const rows = (data as Profile[] | null) ?? []
       setCache(rows)
       setProfiles(rows)
     } catch {

@@ -7,7 +7,7 @@ import { checkRateLimit, RATE_LIMITS } from '../lib/rateLimit'
 import type { Phone, Profile } from '../types'
 import toast from 'react-hot-toast'
 
-const QUERY_TIMEOUT  = 5000
+const QUERY_TIMEOUT  = 15_000
 const MUTATE_TIMEOUT = 12000
 
 export function usePhones(assignedTo?: string, statusFilter?: import('../types').PhoneStatus) {
@@ -22,18 +22,34 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     setLoading(true)
     setDbError(false)
     try {
-      let query = supabase
-        .from('phones')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500)
+      let result: Phone[]
 
-      if (assignedTo)   query = query.eq('assigned_to', assignedTo)
-      if (statusFilter) query = query.eq('status', statusFilter)
+      if (!assignedTo) {
+        // Admin context — use SECURITY DEFINER RPC that bypasses RLS entirely.
+        // Eliminates per-row is_admin() evaluation and cold-start RLS timeouts.
+        const { data, error } = await withTimeout(
+          supabase.rpc('admin_get_phones'),
+          QUERY_TIMEOUT,
+        )
+        if (error) throw error
+        result = (data as Phone[]) ?? []
+        // Apply status filter client-side (RPC returns all phones)
+        if (statusFilter) result = result.filter((p) => p.status === statusFilter)
+      } else {
+        // Agent / team-lead context — direct query filtered by assignment
+        let query = supabase
+          .from('phones')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500)
+          .eq('assigned_to', assignedTo)
+        if (statusFilter) query = query.eq('status', statusFilter)
+        const { data, error } = await withTimeout(query, QUERY_TIMEOUT)
+        if (error) throw error
+        result = data ?? []
+      }
 
-      const { data, error } = await withTimeout(query, QUERY_TIMEOUT)
-      if (error) throw error
-      setPhones(data ?? [])
+      setPhones(result)
     } catch {
       setPhones([])
       setDbError(true)
