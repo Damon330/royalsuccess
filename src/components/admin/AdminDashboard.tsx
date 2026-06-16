@@ -20,7 +20,8 @@ const AGENT_STALE_DAYS    = 3
 const TEAMLEAD_STALE_DAYS = 14
 const STALE_PAGE_SIZE     = 10
 const TEAM_PAGE_SIZE      = 15
-const DASHBOARD_STALE_MS  = 60_000
+const DASHBOARD_STALE_MS  = 120_000   // 2 min — cache longer so nav feels instant
+const QUERY_TIMEOUT_MS    = 10_000    // 10 s hard timeout per fetch
 
 interface AgentRow {
   profile:   Profile
@@ -89,62 +90,64 @@ function RingMetric({ percent, color, label, value, total }: {
 }
 
 // ── Data fetchers ──────────────────────────────────────────────────────────────
+// Single function: 2 parallel queries instead of the old 7 (6 count + 1 phones).
+// Phones (status only) → stats.  Phones (full) + profiles → team/alerts.
 
-async function fetchDashboardStats(): Promise<AdminDashboardStats> {
-  const [tTotal, tStock, tField, tSold, tReturned, tDamaged] = await Promise.all([
-    supabase.from('phones').select('*', { count: 'exact', head: true }),
-    supabase.from('phones').select('*', { count: 'exact', head: true }).eq('status', 'in_stock'),
-    supabase.from('phones').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
-    supabase.from('phones').select('*', { count: 'exact', head: true }).eq('status', 'sold'),
-    supabase.from('phones').select('*', { count: 'exact', head: true }).eq('status', 'returned'),
-    supabase.from('phones').select('*', { count: 'exact', head: true }).eq('status', 'damaged'),
-  ])
-  const anyError = [tTotal, tStock, tField, tSold, tReturned, tDamaged].find((r) => r.error)
-  if (anyError?.error) throw new Error(anyError.error.message)
-  return {
-    total:    tTotal.count    ?? 0,
-    in_stock: tStock.count    ?? 0,
-    in_field: tField.count    ?? 0,
-    sold:     tSold.count     ?? 0,
-    returned: tReturned.count ?? 0,
-    damaged:  tDamaged.count  ?? 0,
-  }
+interface DashboardData {
+  stats:       AdminDashboardStats
+  agentRows:   AgentRow[]
+  staleAlerts: StaleAlert[]
 }
 
-async function fetchTeamData(): Promise<{ agentRows: AgentRow[]; staleAlerts: StaleAlert[] }> {
+async function fetchDashboard(): Promise<DashboardData> {
   const [phonesRes, profilesRes] = await Promise.all([
     withTimeout(
       supabase.from('phones')
-        .select('id, assigned_to, status, model, imei, barcode, serial_number, assigned_at, created_at')
+        .select('id, assigned_to, status, model, imei, barcode, serial_number, assigned_at')
         .limit(5000),
-      8000,
+      QUERY_TIMEOUT_MS,
     ),
     withTimeout(
-      supabase.from('profiles').select('*').neq('role', 'admin'),
-      8000,
+      supabase.from('profiles')
+        .select('id, full_name, role, team_lead_id, status, created_at')
+        .neq('role', 'admin'),
+      QUERY_TIMEOUT_MS,
     ),
   ])
+
   if (phonesRes.error)   throw new Error(phonesRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
 
   const phones   = (phonesRes.data   ?? []) as Phone[]
   const profiles = (profilesRes.data ?? []) as Profile[]
 
+  // ── Stats (computed from phones — no extra queries) ──
+  const stats: AdminDashboardStats = {
+    total:    phones.length,
+    in_stock: phones.filter((p) => p.status === 'in_stock').length,
+    in_field: phones.filter((p) => p.status === 'assigned').length,
+    sold:     phones.filter((p) => p.status === 'sold').length,
+    returned: phones.filter((p) => p.status === 'returned').length,
+    damaged:  phones.filter((p) => p.status === 'damaged').length,
+  }
+
+  // ── Team overview ────────────────────────────────────
   const agentRows: AgentRow[] = profiles.map((prof) => {
     const mine = phones.filter((ph) => ph.assigned_to === prof.id)
     const sold = mine.filter((ph) => ph.status === 'sold').length
     return { profile: prof, assigned: mine.length, sold, remaining: mine.length - sold }
   })
 
+  // ── Stale alerts ─────────────────────────────────────
   const now = Date.now()
-  const alerts: StaleAlert[] = []
+  const staleAlerts: StaleAlert[] = []
   for (const phone of phones.filter((p) => p.status === 'assigned' && p.assigned_at)) {
     const holder = profiles.find((p) => p.id === phone.assigned_to)
     if (!holder) continue
     const days      = (now - new Date(phone.assigned_at!).getTime()) / 86_400_000
     const threshold = holder.role === 'team_lead' ? TEAMLEAD_STALE_DAYS : AGENT_STALE_DAYS
     if (days > threshold) {
-      alerts.push({
+      staleAlerts.push({
         phone,
         holderName:   holder.full_name,
         holderRole:   holder.role as 'agent' | 'team_lead',
@@ -153,8 +156,9 @@ async function fetchTeamData(): Promise<{ agentRows: AgentRow[]; staleAlerts: St
       })
     }
   }
-  alerts.sort((a, b) => b.daysAssigned - a.daysAssigned)
-  return { agentRows, staleAlerts: alerts }
+  staleAlerts.sort((a, b) => b.daysAssigned - a.daysAssigned)
+
+  return { stats, agentRows, staleAlerts }
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -166,31 +170,24 @@ export default function AdminDashboard() {
   const [teamPage,   setTeamPage]   = useState(1)
 
   const {
-    data:    stats = DEFAULT_STATS,
-    isError: statsError,
-    refetch: refetchStats,
+    data,
+    isLoading,
+    isError:    dbError,
+    isFetching,
+    error:      dbErrorObj,
+    refetch:    refetchAll,
   } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn:  fetchDashboardStats,
+    queryKey:  ['dashboard'],
+    queryFn:   fetchDashboard,
     staleTime: DASHBOARD_STALE_MS,
   })
 
-  const {
-    data:       teamData,
-    isLoading:  teamLoading,
-    isError:    teamError,
-    isFetching: teamFetching,
-    error:      teamErrorObj,
-    refetch:    refetchTeam,
-  } = useQuery({
-    queryKey: ['dashboard-team'],
-    queryFn:  fetchTeamData,
-    staleTime: DASHBOARD_STALE_MS,
-  })
+  const stats       = data?.stats       ?? DEFAULT_STATS
+  const agentRows   = data?.agentRows   ?? []
+  const staleAlerts = data?.staleAlerts ?? []
 
-  const dbError    = statsError || teamError
-  const agentRows  = teamData?.agentRows   ?? []
-  const staleAlerts = teamData?.staleAlerts ?? []
+  const teamLoading  = isLoading
+  const teamFetching = isFetching
 
   const teamLeadRows  = agentRows.filter((r) => r.profile.role === 'team_lead')
   const agentOnlyRows = agentRows.filter((r) => r.profile.role === 'agent')
@@ -202,7 +199,7 @@ export default function AdminDashboard() {
   const teamTotalPages = Math.max(1, Math.ceil(allRows.length / TEAM_PAGE_SIZE))
   const pagedTeam      = allRows.slice((teamPage - 1) * TEAM_PAGE_SIZE, teamPage * TEAM_PAGE_SIZE)
 
-  function refetchAll() { refetchStats(); refetchTeam() }
+  // refetchAll is already defined from useQuery above
 
   // Derived metrics
   const total           = stats.total || 1
@@ -234,11 +231,11 @@ export default function AdminDashboard() {
             <div className="flex-1">
               <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Database connection failed</p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                {(teamErrorObj as Error)?.message ?? 'Go to supabase.com → resume project → Refresh.'}
+                {(dbErrorObj as Error)?.message ?? 'Could not reach database. Check your connection and try again.'}
               </p>
             </div>
             <button
-              onClick={refetchAll}
+              onClick={() => refetchAll()}
               className="flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 px-3 py-1.5 rounded-full transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Refresh

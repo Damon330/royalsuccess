@@ -3,20 +3,17 @@ import { QueryClient } from '@tanstack/react-query'
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Data is considered fresh for 30 s — no re-fetch if another component
-      // mounts and uses the same key within that window.
-      staleTime: 30_000,
-      // Keep unused cache entries for 5 min so navigating back is instant.
-      gcTime: 5 * 60_000,
-      // Two automatic retries with exponential back-off, capped at 10 s.
-      retry: 2,
-      retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 10_000),
-      // Refetch silently when the user returns to the tab.
-      refetchOnWindowFocus: true,
+      // Fresh for 60 s — no re-fetch if another component mounts within window.
+      staleTime: 60_000,
+      // Keep unused cache for 10 min so navigating back is instant.
+      gcTime: 10 * 60_000,
+      // One retry only, flat 400 ms delay — fail fast instead of waiting 3 s+.
+      retry: 1,
+      retryDelay: 400,
+      refetchOnWindowFocus: false,
       refetchOnReconnect:   true,
     },
     mutations: {
-      // Mutations never auto-retry — a duplicate phone insert would be wrong.
       retry: 0,
     },
   },

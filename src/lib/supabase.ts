@@ -17,4 +17,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
     params: { eventsPerSecond: 10 },
   },
+  global: {
+    // Aggressive fetch timeout — don't let a single query hang the app
+    fetch: (url, opts) => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 12_000)
+      return fetch(url, { ...opts, signal: controller.signal })
+        .finally(() => clearTimeout(timer))
+    },
+  },
 })
