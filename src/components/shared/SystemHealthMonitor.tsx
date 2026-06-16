@@ -103,10 +103,8 @@ export default function SystemHealthMonitor() {
                 {/* Context-aware hints */}
                 {health.errorMessage?.toLowerCase().includes('timeout') && (
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                    Supabase free-tier projects pause after 1 week of inactivity — resume yours at{' '}
-                    <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="underline font-semibold">
-                      supabase.com/dashboard
-                    </a>, then click Retry.
+                    Supabase free-tier projects pause after 1 week of inactivity. Resume at{' '}
+                    <a href="https://supabase.com/dashboard" target="_blank" rel="noreferrer" className="underline font-semibold">supabase.com/dashboard</a>, then Retry.
                   </p>
                 )}
                 {health.errorMessage?.toLowerCase().includes('jwt') && (
@@ -114,14 +112,36 @@ export default function SystemHealthMonitor() {
                     Session expired — sign out and back in to refresh your token.
                   </p>
                 )}
+                {health.errorMessage?.toLowerCase().includes('mismatch') && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                    The DB sees a different email than expected. Sign out fully, clear browser cache, and sign in again.
+                  </p>
+                )}
                 {(health.errorCode === '42501' || health.errorMessage?.toLowerCase().includes('permission denied')) && (
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                    RLS policy blocked the query. Run <span className="font-mono font-bold">supabase/fix-all-rls.sql</span> in the Supabase SQL Editor.
+                    RLS blocked the query. Run <span className="font-mono font-bold">supabase/v2-full-migration.sql</span> in the Supabase SQL Editor, then Retry.
+                  </p>
+                )}
+                {(health.errorCode === 'PGRST202' || health.errorMessage?.toLowerCase().includes('could not find the function')) && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                    Missing RPC functions. Run <span className="font-mono font-bold">supabase/v2-full-migration.sql</span> in the Supabase SQL Editor.
                   </p>
                 )}
                 {(health.errorCode === 'PGRST301' || health.errorCode === '42P01') && (
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                    Table not found. Run the latest migration file from the <span className="font-mono font-bold">supabase/</span> folder in the SQL Editor.
+                    Table not found. Run the latest migration file from the <span className="font-mono font-bold">supabase/</span> folder.
+                  </p>
+                )}
+                {/* Show what email the DB actually sees — key diagnostic info */}
+                {health.authEmail && health.authEmail !== 'unauthenticated' && (
+                  <p className="text-[11px] text-brand-muted mt-1 font-mono">
+                    DB email: <span className="font-bold text-brand-text">{health.authEmail}</span>
+                    {health.isAdmin === false && (
+                      <span className="text-negative font-bold"> (not recognized as admin)</span>
+                    )}
+                    {health.isAdmin === true && (
+                      <span className="text-positive font-bold"> ✓ admin</span>
+                    )}
                   </p>
                 )}
               </div>

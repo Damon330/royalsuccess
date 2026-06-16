@@ -17,6 +17,8 @@ export interface HealthState {
   lastChecked:  Date | null
   errorCode:    string | null
   errorMessage: string | null
+  authEmail:    string | null    // What the DB sees for the current session
+  isAdmin:      boolean | null   // Whether DB agrees this is an admin
   checks:       HealthCheck[]
   consecutive:  number
 }
@@ -27,89 +29,105 @@ const POLL_INTERVAL_MS = 30_000
 
 const INITIAL: HealthState = {
   status: 'checking', latencyMs: null, lastChecked: null,
-  errorCode: null, errorMessage: null, checks: [], consecutive: 0,
+  errorCode: null, errorMessage: null, authEmail: null, isAdmin: null,
+  checks: [], consecutive: 0,
 }
 
 export function useSystemHealth() {
   const [health,  setHealth]  = useState<HealthState>(INITIAL)
-  const wasDownRef   = useRef(false)
+  const wasDownRef     = useRef(false)
   const consecutiveRef = useRef(0)
-  const intervalRef  = useRef<ReturnType<typeof setInterval>>()
+  const intervalRef    = useRef<ReturnType<typeof setInterval>>()
 
   const check = useCallback(async () => {
-    setHealth((prev) => ({ ...prev, status: prev.status === 'down' ? 'checking' : prev.status }))
+    setHealth((prev) => ({
+      ...prev,
+      status: prev.status === 'down' || prev.status === 'healthy' ? 'checking' : prev.status,
+    }))
 
     const checks: HealthCheck[] = []
-    let anyFailed = false
+    let anyFailed        = false
+    let errorCode:    string | null = null
+    let errorMessage: string | null = null
+    let authEmail:    string | null = null
+    let isAdmin:      boolean | null = null
 
-    // ── Check 1: session validity ───────────────────────────────────────
-    const sessionStart = Date.now()
+    // ── Check 1: health_check() RPC ─────────────────────────────────────
+    // Returns exact email the DB sees + is_admin flag.
+    // If the RPC doesn't exist yet (migration not run), fall back to raw query.
+    const t0 = Date.now()
     try {
-      const { data: { session }, error: sErr } = await supabase.auth.getSession()
-      const sessionLatency = Date.now() - sessionStart
-      if (sErr || !session) {
-        checks.push({ name: 'Auth Session', ok: false, latencyMs: sessionLatency, detail: sErr?.message ?? 'No active session' })
-        anyFailed = true
+      const { data, error } = await supabase.rpc('health_check')
+      const latency = Date.now() - t0
+
+      if (error) {
+        // RPC might not exist yet — fall through to raw query check
+        checks.push({
+          name: 'DB Health RPC',
+          ok: false,
+          latencyMs: latency,
+          detail: `[${error.code ?? 'ERR'}] ${error.message} — run v2-full-migration.sql`,
+        })
+        errorCode    = error.code ?? null
+        errorMessage = error.message
+        anyFailed    = true
       } else {
-        // Check if token expires soon (< 5 minutes) and proactively refresh
-        const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
-        if (expiresIn < 300) {
-          await supabase.auth.refreshSession()
-          checks.push({ name: 'Auth Session', ok: true, latencyMs: sessionLatency, detail: 'Token refreshed (was expiring soon)' })
-        } else {
-          checks.push({ name: 'Auth Session', ok: true, latencyMs: sessionLatency, detail: `Token valid for ${Math.floor(expiresIn / 60)}m` })
+        const hc = data as { ok: boolean; is_admin: boolean; auth_email: string; ts: number }
+        authEmail = hc?.auth_email ?? null
+        isAdmin   = hc?.is_admin  ?? null
+        checks.push({
+          name: 'DB Health RPC',
+          ok: true,
+          latencyMs: latency,
+          detail: `Connected · email=${hc?.auth_email ?? 'null'} · is_admin=${hc?.is_admin}`,
+        })
+
+        // Warn if admin email doesn't match (JWT issue)
+        if (hc?.is_admin === false && hc?.auth_email && hc.auth_email !== 'unauthenticated') {
+          checks.push({
+            name: 'Admin JWT Check',
+            ok: false,
+            latencyMs: null,
+            detail: `DB sees email "${hc.auth_email}" but admin_email is "patrickwlax@gmail.com". Sign out and back in.`,
+          })
+          anyFailed    = true
+          errorMessage = `Admin email mismatch: DB sees "${hc.auth_email}". Sign out and sign in again.`
+        } else if (hc?.is_admin === true) {
+          checks.push({ name: 'Admin JWT Check', ok: true, latencyMs: null, detail: 'Admin identity confirmed by DB' })
         }
       }
     } catch (err) {
-      checks.push({ name: 'Auth Session', ok: false, latencyMs: Date.now() - sessionStart, detail: String(err) })
+      const latency = Date.now() - t0
+      errorMessage = err instanceof Error ? err.message : String(err)
+      checks.push({ name: 'DB Health RPC', ok: false, latencyMs: latency, detail: errorMessage })
       anyFailed = true
     }
 
-    // ── Check 2: DB connectivity (profiles table — lightweight) ─────────
-    const dbStart = Date.now()
-    let dbLatency = 0
-    let dbErrorCode: string | null = null
-    let dbErrorMessage: string | null = null
+    // ── Check 2: Auth session ────────────────────────────────────────────
+    const t1 = Date.now()
     try {
-      const { data, error: dbErr } = await supabase
-        .from('profiles').select('id').limit(1)
-      dbLatency = Date.now() - dbStart
+      const { data: { session }, error: sErr } = await supabase.auth.getSession()
+      const latency = Date.now() - t1
 
-      if (dbErr) {
-        dbErrorCode    = dbErr.code ?? null
-        dbErrorMessage = dbErr.message
-        checks.push({ name: 'Database', ok: false, latencyMs: dbLatency, detail: `${dbErr.code ? `[${dbErr.code}] ` : ''}${dbErr.message}` })
+      if (sErr || !session) {
+        checks.push({ name: 'Auth Session', ok: false, latencyMs: latency, detail: sErr?.message ?? 'No active session — please sign in' })
         anyFailed = true
+        if (!errorMessage) errorMessage = 'No active session'
       } else {
-        checks.push({ name: 'Database', ok: true, latencyMs: dbLatency, detail: data !== null ? 'Reachable' : 'Reachable (empty)' })
+        const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
+        if (expiresIn < 300) {
+          await supabase.auth.refreshSession()
+          checks.push({ name: 'Auth Session', ok: true, latencyMs: latency, detail: 'Token auto-refreshed (was expiring)' })
+        } else {
+          checks.push({ name: 'Auth Session', ok: true, latencyMs: latency, detail: `Valid for ${Math.floor(expiresIn / 60)}m · ${session.user.email}` })
+        }
       }
     } catch (err) {
-      dbLatency = Date.now() - dbStart
-      dbErrorMessage = err instanceof Error ? err.message : String(err)
-      checks.push({ name: 'Database', ok: false, latencyMs: dbLatency, detail: dbErrorMessage })
+      checks.push({ name: 'Auth Session', ok: false, latencyMs: Date.now() - t1, detail: String(err) })
       anyFailed = true
     }
 
-    // ── Check 3: phones table access ────────────────────────────────────
-    const phonesStart = Date.now()
-    try {
-      const { error: pErr } = await supabase
-        .from('phones').select('id').limit(1)
-      const phonesLatency = Date.now() - phonesStart
-
-      if (pErr) {
-        checks.push({ name: 'Phones Table', ok: false, latencyMs: phonesLatency, detail: `${pErr.code ? `[${pErr.code}] ` : ''}${pErr.message}` })
-        anyFailed = true
-        if (!dbErrorMessage) { dbErrorCode = pErr.code ?? null; dbErrorMessage = pErr.message }
-      } else {
-        checks.push({ name: 'Phones Table', ok: true, latencyMs: phonesLatency, detail: 'Accessible' })
-      }
-    } catch (err) {
-      checks.push({ name: 'Phones Table', ok: false, latencyMs: Date.now() - phonesStart, detail: String(err) })
-      anyFailed = true
-    }
-
-    const totalLatency = checks.reduce((sum, c) => sum + (c.latencyMs ?? 0), 0)
+    const totalLatency = checks.reduce((s, c) => s + (c.latencyMs ?? 0), 0)
 
     if (anyFailed) {
       consecutiveRef.current += 1
@@ -119,14 +137,15 @@ export function useSystemHealth() {
         status,
         latencyMs:    totalLatency,
         lastChecked:  new Date(),
-        errorCode:    dbErrorCode,
-        errorMessage: dbErrorMessage,
+        errorCode,
+        errorMessage,
+        authEmail,
+        isAdmin,
         checks,
-        consecutive:  consecutiveRef.current,
+        consecutive: consecutiveRef.current,
       })
     } else {
       if (wasDownRef.current) {
-        // Just recovered — flush stale cached data so dashboard reloads fresh
         queryClient.invalidateQueries()
         wasDownRef.current = false
       }
@@ -135,9 +154,13 @@ export function useSystemHealth() {
       const worstLatency = Math.max(...checks.map((c) => c.latencyMs ?? 0))
       const status: HealthStatus =
         worstLatency > LATENCY_BAD_MS  ? 'degraded' :
-        worstLatency > LATENCY_SLOW_MS ? 'slow'     : 'healthy'
+        worstLatency > LATENCY_SLOW_MS ? 'slow'      : 'healthy'
 
-      setHealth({ status, latencyMs: totalLatency, lastChecked: new Date(), errorCode: null, errorMessage: null, checks, consecutive: 0 })
+      setHealth({
+        status, latencyMs: totalLatency, lastChecked: new Date(),
+        errorCode: null, errorMessage: null, authEmail, isAdmin,
+        checks, consecutive: 0,
+      })
     }
   }, [])
 
@@ -145,11 +168,9 @@ export function useSystemHealth() {
     check()
     intervalRef.current = setInterval(check, POLL_INTERVAL_MS)
 
-    // Re-check immediately when the tab becomes visible again
     function onVisibility() {
       if (document.visibilityState === 'visible') check()
     }
-    // Re-check when browser goes back online
     function onOnline() { check() }
 
     document.addEventListener('visibilitychange', onVisibility)
