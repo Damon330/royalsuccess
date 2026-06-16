@@ -409,10 +409,12 @@ CREATE INDEX IF NOT EXISTS idx_profiles_status       ON public.profiles (status)
 CREATE INDEX IF NOT EXISTS idx_profiles_role_status  ON public.profiles (role, status);
 
 -- sales: reporting queries
+-- Note: date_trunc on timestamptz is STABLE not IMMUTABLE, so cannot be used
+-- in an index expression. idx_sales_sold_at covers monthly range scans just as well.
 CREATE INDEX IF NOT EXISTS idx_sales_sold_by         ON public.sales (sold_by);
 CREATE INDEX IF NOT EXISTS idx_sales_sold_at         ON public.sales (sold_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sales_phone_id        ON public.sales (phone_id);
-CREATE INDEX IF NOT EXISTS idx_sales_month           ON public.sales (date_trunc('month', sold_at));
+CREATE INDEX IF NOT EXISTS idx_sales_agent_month     ON public.sales (sold_by, sold_at DESC);
 
 -- notifications: unread fetch (most common query)
 CREATE INDEX IF NOT EXISTS idx_notif_recipient_unread ON public.notifications (recipient_id, read)
