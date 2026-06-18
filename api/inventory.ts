@@ -9,8 +9,8 @@ export const config = { runtime: 'edge' }
 
 const SUPABASE_URL      = process.env.VITE_SUPABASE_URL!
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY!
-const REDIS_URL         = process.env.VITE_UPSTASH_REDIS_REST_URL!
-const REDIS_TOKEN       = process.env.VITE_UPSTASH_REDIS_REST_TOKEN!
+const REDIS_URL         = process.env.UPSTASH_REDIS_REST_URL
+const REDIS_TOKEN       = process.env.UPSTASH_REDIS_REST_TOKEN
 
 const CACHE_KEY = 'inventory:all'
 const CACHE_TTL = 60

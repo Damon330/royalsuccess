@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.api.json"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
@@ -27,8 +27,10 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
+    "@vercel/node": "^5.8.17",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.45",
