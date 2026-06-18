@@ -1,5 +1,4 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import Header from '../shared/Header'
 import Button from '../shared/Button'
@@ -59,6 +58,45 @@ type ScanCamTab = 'hardware' | 'camera'
 type ScanStep   = 'scanning' | 'confirm'
 
 interface ExcelRow { model: string; serial_number: string; barcode?: string; imei?: string }
+
+function csvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i]
+    const next = line[i + 1]
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"'
+      i += 1
+    } else if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      cells.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+
+  cells.push(current.trim())
+  return cells
+}
+
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim())
+  if (lines.length < 2) return []
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim())
+  return lines.slice(1).map((line) => {
+    const cells = parseCsvLine(line)
+    return Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? '']))
+  })
+}
 
 function ScanResultBanner({ phone, onClose }: { phone: Phone; onClose: () => void }) {
   return (
@@ -234,15 +272,18 @@ export default function AdminInventory() {
   }
 
   function downloadTemplate() {
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([
+    const rows = [
       ['Model', 'Serial Number', 'Barcode', 'IMEI'],
       ['iPhone 15 Pro', 'SN-IP15P-001', '352876543210001', '352876543210001'],
       ['Samsung S24 Ultra', 'SN-S24U-001', '356789012345001', '356789012345001'],
-    ])
-    ws['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 18 }]
-    XLSX.utils.book_append_sheet(wb, ws, 'Phones')
-    XLSX.writeFile(wb, 'royal-success-phone-import.xlsx')
+    ]
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'royal-success-phone-import.csv'
+    a.click()
+    URL.revokeObjectURL(url)
     toast.success('Template downloaded.')
   }
 
@@ -253,11 +294,8 @@ export default function AdminInventory() {
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const data = new Uint8Array(ev.target?.result as ArrayBuffer)
-        const wb   = XLSX.read(data, { type: 'array' })
-        const json = XLSX.utils.sheet_to_json<Record<string, string>>(
-          wb.Sheets[wb.SheetNames[0]], { defval: '' },
-        )
+        const text = String(ev.target?.result ?? '')
+        const json = parseCsv(text)
         const parsed: ExcelRow[] = json.map((row) => {
           const keys       = Object.keys(row)
           const modelKey   = keys.find((k) => k.toLowerCase().includes('model'))   ?? keys[0]
@@ -276,7 +314,7 @@ export default function AdminInventory() {
         setExcelRows(parsed)
       } catch { toast.error('Could not read file.') }
     }
-    reader.readAsArrayBuffer(file)
+    reader.readAsText(file)
     e.target.value = ''
   }
 
@@ -317,7 +355,7 @@ export default function AdminInventory() {
   const modeTabs: { key: AddMode; label: string }[] = [
     { key: 'single', label: 'Single' },
     { key: 'bulk',   label: 'Bulk' },
-    { key: 'excel',  label: 'Excel' },
+    { key: 'excel',  label: 'CSV' },
     { key: 'scan',   label: 'Scan' },
   ]
   const allFilters: (PhoneStatus | 'all')[] = ['all', 'in_stock', 'assigned', 'sold', 'returned', 'damaged']
@@ -578,7 +616,7 @@ export default function AdminInventory() {
             </>
           )}
 
-          {/* ── Excel ── */}
+          {/* CSV import */}
           {mode === 'excel' && (
             <div className="space-y-3">
               <div className="bg-primary-pale border border-primary/20 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
@@ -597,9 +635,9 @@ export default function AdminInventory() {
                 {excelFileName
                   ? <p className="text-sm font-medium text-brand-text">{excelFileName}</p>
                   : <><p className="text-sm font-medium text-brand-text">Click to select file</p>
-                     <p className="text-xs text-brand-muted mt-1">.xlsx, .xls, .csv</p></>
+                     <p className="text-xs text-brand-muted mt-1">.csv</p></>
                 }
-                <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="sr-only" />
+                <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleFileChange} className="sr-only" />
               </div>
               {excelRows.length > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { Component, ReactNode, useEffect } from 'react'
+import { Component, lazy, ReactNode, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RestrictedModeProvider } from '../context/RestrictedModeContext'
 import { useRestrictedMode } from '../hooks/useRestrictedMode'
@@ -6,27 +6,32 @@ import type { AdminModuleId } from '../lib/adminModules'
 import { SystemHealthProvider } from '../context/SystemHealthContext'
 import SystemHealthMonitor from '../components/shared/SystemHealthMonitor'
 import Sidebar from '../components/shared/Sidebar'
-import AdminDashboard from '../components/admin/AdminDashboard'
-import AdminInventory from '../components/admin/AdminInventory'
-import AdminAgents from '../components/admin/AdminAgents'
-import AdminAssignPhones from '../components/admin/AdminAssignPhones'
-import AdminReports from '../components/admin/AdminReports'
-import AdminInsights from '../components/admin/AdminInsights'
-import AdminReturns from '../components/admin/AdminReturns'
-import AdminReceipts from '../components/admin/AdminReceipts'
-import ActivityPage from './ActivityPage'
-import PayrollPage from '../components/admin/payroll/PayrollPage'
-import ProfilePage from '../components/shared/ProfilePage'
-import SettingsPage from '../components/shared/SettingsPage'
-import DiagnosticsPage from './DiagnosticsPage'
+import Spinner from '../components/shared/Spinner'
 
-// Catches rendering errors in any admin page so the layout never goes blank
+const AdminDashboard    = lazy(() => import('../components/admin/AdminDashboard'))
+const AdminInventory    = lazy(() => import('../components/admin/AdminInventory'))
+const AdminAgents       = lazy(() => import('../components/admin/AdminAgents'))
+const AdminAssignPhones = lazy(() => import('../components/admin/AdminAssignPhones'))
+const AdminReports      = lazy(() => import('../components/admin/AdminReports'))
+const AdminInsights     = lazy(() => import('../components/admin/AdminInsights'))
+const AdminReturns      = lazy(() => import('../components/admin/AdminReturns'))
+const AdminReceipts     = lazy(() => import('../components/admin/AdminReceipts'))
+const ActivityPage      = lazy(() => import('./ActivityPage'))
+const PayrollPage       = lazy(() => import('../components/admin/payroll/PayrollPage'))
+const ProfilePage       = lazy(() => import('../components/shared/ProfilePage'))
+const SettingsPage      = lazy(() => import('../components/shared/SettingsPage'))
+const DiagnosticsPage   = lazy(() => import('./DiagnosticsPage'))
+
 class PageErrorBoundary extends Component<
   { children: ReactNode },
   { error: Error | null }
 > {
   state = { error: null }
-  static getDerivedStateFromError(error: Error) { return { error } }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
   render() {
     if (this.state.error) {
       return (
@@ -71,29 +76,38 @@ function AdminShell() {
       <div className="flex h-screen overflow-hidden bg-brand-bg transition-colors duration-200">
         <Sidebar />
         <main className="flex-1 flex flex-col overflow-hidden">
-          {/* System health banner — auto-shows when DB or auth has issues */}
           <SystemHealthMonitor />
           <PageErrorBoundary>
-            <Routes>
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="inventory" element={<RequireAdminModule moduleId="inventory"><AdminInventory /></RequireAdminModule>} />
-            <Route path="agents"    element={<RequireAdminModule moduleId="employees"><AdminAgents /></RequireAdminModule>} />
-            <Route path="assign"    element={<RequireAdminModule moduleId="inventory"><AdminAssignPhones /></RequireAdminModule>} />
-            <Route path="reports"   element={<RequireAdminModule moduleId="reports"><AdminReports /></RequireAdminModule>} />
-            <Route path="insights"  element={<RequireAdminModule moduleId="reports"><AdminInsights /></RequireAdminModule>} />
-            <Route path="returns"   element={<RequireAdminModule moduleId="inventory"><AdminReturns /></RequireAdminModule>} />
-            <Route path="receipts"  element={<RequireAdminModule moduleId="sales"><AdminReceipts /></RequireAdminModule>} />
-            <Route path="activity"  element={<RequireAdminModule moduleId="reports"><ActivityPage /></RequireAdminModule>} />
-            <Route path="payroll"   element={<RequireAdminModule moduleId="payroll"><PayrollPage /></RequireAdminModule>} />
-            <Route path="profile"      element={<RequireAdminModule moduleId="settings"><ProfilePage /></RequireAdminModule>} />
-            <Route path="settings"     element={<RequireAdminModule moduleId="settings"><SettingsPage /></RequireAdminModule>} />
-            <Route path="diagnostics"  element={<RequireAdminModule moduleId="diagnostics"><DiagnosticsPage /></RequireAdminModule>} />
-            <Route path="*"            element={<Navigate to={restrictedMode.firstAllowedPath.replace('/admin/', '')} replace />} />
-            </Routes>
+            <Suspense fallback={<AdminPageFallback />}>
+              <Routes>
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="inventory" element={<RequireAdminModule moduleId="inventory"><AdminInventory /></RequireAdminModule>} />
+                <Route path="agents" element={<RequireAdminModule moduleId="employees"><AdminAgents /></RequireAdminModule>} />
+                <Route path="assign" element={<RequireAdminModule moduleId="inventory"><AdminAssignPhones /></RequireAdminModule>} />
+                <Route path="reports" element={<RequireAdminModule moduleId="reports"><AdminReports /></RequireAdminModule>} />
+                <Route path="insights" element={<RequireAdminModule moduleId="reports"><AdminInsights /></RequireAdminModule>} />
+                <Route path="returns" element={<RequireAdminModule moduleId="inventory"><AdminReturns /></RequireAdminModule>} />
+                <Route path="receipts" element={<RequireAdminModule moduleId="sales"><AdminReceipts /></RequireAdminModule>} />
+                <Route path="activity" element={<RequireAdminModule moduleId="reports"><ActivityPage /></RequireAdminModule>} />
+                <Route path="payroll" element={<RequireAdminModule moduleId="payroll"><PayrollPage /></RequireAdminModule>} />
+                <Route path="profile" element={<RequireAdminModule moduleId="settings"><ProfilePage /></RequireAdminModule>} />
+                <Route path="settings" element={<RequireAdminModule moduleId="settings"><SettingsPage /></RequireAdminModule>} />
+                <Route path="diagnostics" element={<RequireAdminModule moduleId="diagnostics"><DiagnosticsPage /></RequireAdminModule>} />
+                <Route path="*" element={<Navigate to={restrictedMode.firstAllowedPath.replace('/admin/', '')} replace />} />
+              </Routes>
+            </Suspense>
           </PageErrorBoundary>
         </main>
       </div>
     </SystemHealthProvider>
+  )
+}
+
+function AdminPageFallback() {
+  return (
+    <div className="flex-1 flex items-center justify-center bg-brand-bg">
+      <Spinner size="lg" />
+    </div>
   )
 }
 

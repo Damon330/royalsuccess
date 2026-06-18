@@ -2,7 +2,6 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
@@ -11,8 +10,12 @@ import { queryClient } from './lib/queryClient'
 import { initWebVitals, initGlobalErrorCapture } from './lib/telemetry'
 import './index.css'
 
-// Telemetry: global JS error capture starts immediately;
-// Web Vitals are reported asynchronously as the browser fires each event.
+const ReactQueryDevtools = import.meta.env.DEV
+  ? React.lazy(() => import('@tanstack/react-query-devtools').then((mod) => ({
+      default: mod.ReactQueryDevtools,
+    })))
+  : null
+
 initGlobalErrorCapture(() => {
   try { return sessionStorage.getItem('rs-uid') ?? undefined } catch { return undefined }
 })
@@ -23,21 +26,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ThemeProvider>
-        <AuthProvider>
-          <App />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: { fontFamily: 'Inter, sans-serif', fontSize: '14px' },
-              success: { iconTheme: { primary: '#0F4C35', secondary: '#fff' } },
-            }}
-          />
-        </AuthProvider>
+          <AuthProvider>
+            <App />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: { fontFamily: 'Inter, sans-serif', fontSize: '14px' },
+                success: { iconTheme: { primary: '#0F4C35', secondary: '#fff' } },
+              }}
+            />
+          </AuthProvider>
         </ThemeProvider>
       </BrowserRouter>
-      {/* DevTools panel — tree-shaken from production bundle automatically */}
-      <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+      {ReactQueryDevtools && (
+        <React.Suspense fallback={null}>
+          <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
+        </React.Suspense>
+      )}
     </QueryClientProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 )

@@ -19,6 +19,8 @@ export interface InventoryPage {
   totalPages: number
 }
 
+type PhonePageRow = Phone & { total_count: number }
+
 // ── Server-side paginated phone query ─────────────────────────────────────────
 // Returns only one page of phones from the DB — never pulls 500 rows.
 // React Query caches each [page, status, search] combination independently
@@ -68,6 +70,40 @@ function inventoryKey(page: number, filter: InventoryFilter) {
 }
 
 async function fetchPage(page: number, filter: InventoryFilter): Promise<InventoryPage> {
+  const from = (page - 1) * INVENTORY_PAGE_SIZE
+  const pageResult = await withTimeout(
+    supabase.rpc('admin_get_phones_page', {
+      p_limit:  INVENTORY_PAGE_SIZE,
+      p_offset: from,
+      p_status: filter.status && filter.status !== 'all' ? filter.status : null,
+      p_search: filter.search?.trim() || null,
+    }),
+    30_000,
+  )
+
+  if (!pageResult.error) {
+    const rows = (pageResult.data as PhonePageRow[] | null) ?? []
+    const totalCount = rows[0]?.total_count ?? 0
+    const phones = rows.map(({ total_count: _totalCount, ...phone }) => phone)
+
+    return {
+      phones,
+      totalCount,
+      totalPages: Math.max(1, Math.ceil(totalCount / INVENTORY_PAGE_SIZE)),
+    }
+  }
+
+  const missingRpc = pageResult.error.code === '42883'
+    || pageResult.error.code === 'PGRST202'
+    || pageResult.error.message.toLowerCase().includes('admin_get_phones_page')
+  if (!missingRpc) {
+    logDbError('useInventoryPage', pageResult.error.message, {
+      code: pageResult.error.code,
+      detail: pageResult.error.details,
+    })
+    throw new Error(pageResult.error.message)
+  }
+
   const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 30_000)
   if (error) {
     logDbError('useInventoryPage', error.message, { code: error.code, detail: error.details })
@@ -91,7 +127,6 @@ async function fetchPage(page: number, filter: InventoryFilter): Promise<Invento
   }
 
   const totalCount = phones.length
-  const from       = (page - 1) * INVENTORY_PAGE_SIZE
 
   return {
     phones:     phones.slice(from, from + INVENTORY_PAGE_SIZE),

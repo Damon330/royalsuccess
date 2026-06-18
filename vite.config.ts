@@ -37,6 +37,10 @@ export default defineConfig({
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB — @react-pdf/renderer increases bundle size
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: [
+          '**/react-pdf.browser-*.js',
+          '**/ScannerModal-*.js',
+        ],
         runtimeCaching: [
           {
             // Cache database REST responses as a short-lived offline fallback.

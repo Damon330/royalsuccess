@@ -5,7 +5,6 @@ import { useActivityLog } from '../hooks/useActivityLog'
 import { useProfiles } from '../hooks/useProfiles'
 import ActivityFeed, { ActivityFiltersBar } from '../components/shared/ActivityFeed'
 import Header from '../components/shared/Header'
-import { downloadActivityPdf } from '../lib/activityPdf'
 import toast from 'react-hot-toast'
 import { MdDownload, MdChevronLeft, MdChevronRight } from 'react-icons/md'
 
@@ -78,6 +77,7 @@ export default function ActivityPage() {
       const title = profile?.role === 'agent'
         ? `My Activity Report — ${profile.full_name}`
         : 'Activity Report'
+      const { downloadActivityPdf } = await import('../lib/activityPdf')
       await downloadActivityPdf(pdfYear, pdfMonth, agentId, title)
       toast.success(`PDF downloaded for ${MONTHS[pdfMonth - 1]} ${pdfYear}`)
     } catch {
