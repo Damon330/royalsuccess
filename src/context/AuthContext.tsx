@@ -125,12 +125,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   //    frozen spinner. It does NOT touch the session or localStorage — if
   //    Supabase is still refreshing in the background it will complete normally.
   useEffect(() => {
+    // 35 s — longer than Supabase free-tier GoTrue cold-start (typically 20–30 s).
+    // If TOKEN_REFRESHED or SIGNED_OUT has not fired by then, we clear loading so
+    // the user sees the login page rather than a frozen spinner forever.
     const initTimeout = setTimeout(() => {
       if (!initialised.current) {
         initialised.current = true
         setLoading(false)
       }
-    }, 10_000)
+    }, 35_000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
@@ -144,6 +147,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false)
           }
           return
+        }
+
+        // ── Cold-start guard ────────────────────────────────────────────────────
+        // Supabase fires INITIAL_SESSION immediately with whatever is in
+        // localStorage — even an expired access token. If we accept that session
+        // and show the dashboard, every DB call fails with 401 until the background
+        // refresh completes (which can take 20–30 s on the free tier while GoTrue
+        // wakes from sleep). Instead, stay in loading state and wait for either
+        // TOKEN_REFRESHED (refresh succeeded) or SIGNED_OUT (refresh failed /
+        // refresh token expired). The initTimeout above falls back to the login
+        // page if neither fires within 35 s.
+        if (_event === 'INITIAL_SESSION' && s) {
+          const nowSecs   = Math.floor(Date.now() / 1000)
+          const expiresAt = s.expires_at ?? 0
+          if (expiresAt <= nowSecs) {
+            return  // token is expired — stay loading, wait for refresh result
+          }
         }
 
         setSession(s)

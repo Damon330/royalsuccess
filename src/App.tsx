@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import LoginPage from './pages/LoginPage'
@@ -12,10 +12,28 @@ const TeamLeadLayout = lazy(() => import('./pages/TeamLeadLayout'))
 const AgentLayout    = lazy(() => import('./pages/AgentLayout'))
 const PendingPage    = lazy(() => import('./pages/PendingPage'))
 
+// Shows a spinner with a reassuring message after 5 s.
+// This covers Supabase free-tier cold-start: GoTrue can take 20–30 s to wake
+// from sleep, and the JWT refresh hangs until it does. The message tells the
+// user something is happening rather than leaving them with a frozen screen.
 function FullPageSpinner() {
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowHint(true), 5_000)
+    return () => clearTimeout(t)
+  }, [])
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-bg">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-brand-bg gap-3">
       <Spinner size="lg" />
+      {showHint && (
+        <p className="text-sm text-brand-muted text-center max-w-xs leading-relaxed">
+          Starting up server, please wait…
+          <br />
+          <span className="text-xs opacity-70">This can take up to 30 seconds on first load.</span>
+        </p>
+      )}
     </div>
   )
 }
