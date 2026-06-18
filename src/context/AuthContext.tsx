@@ -1,6 +1,7 @@
 import { createContext, useEffect, useRef, useState, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { withTimeout } from '../lib/withTimeout'
 import type { Profile } from '../types'
 import { ADMIN_EMAIL } from '../lib/constants'
 
@@ -56,40 +57,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchProfile(userId: string, email?: string | null) {
     const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
 
-    if (isAdmin) {
-      const { data: existing } = await supabase
-        .from('profiles').select('*').eq('id', userId).maybeSingle()
+    // 8 s ceiling on all profile fetches. The global 45 s Supabase fetch
+    // timeout is the hard outer limit, but we want the loading screen to clear
+    // quickly even when the DB is still waking up. On timeout we fall back to
+    // a minimal profile so the user can reach the app; data hooks refetch later.
+    const PROFILE_TIMEOUT = 8_000
 
-      if (!existing) {
-        await supabase.from('profiles').insert({
-          id: userId, full_name: 'Admin', role: 'admin', status: 'active',
-        })
-        const { data: fresh } = await supabase
-          .from('profiles').select('*').eq('id', userId).maybeSingle()
-        setProfile(fresh ?? {
+    if (isAdmin) {
+      try {
+        const { data: existing } = await withTimeout(
+          supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+          PROFILE_TIMEOUT,
+        )
+        if (!existing) {
+          await withTimeout(
+            supabase.from('profiles').insert({
+              id: userId, full_name: 'Admin', role: 'admin', status: 'active',
+            }),
+            PROFILE_TIMEOUT,
+          )
+          const { data: fresh } = await withTimeout(
+            supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+            PROFILE_TIMEOUT,
+          )
+          setProfile(fresh ?? {
+            id: userId, full_name: 'Admin', phone_number: null,
+            role: 'admin'  as const, team_lead_id: null,
+            status: 'active' as const, created_at: new Date().toISOString(),
+          })
+        } else {
+          if (existing.role !== 'admin' || existing.status !== 'active') {
+            await withTimeout(
+              supabase.from('profiles')
+                .update({ role: 'admin', status: 'active' }).eq('id', userId),
+              PROFILE_TIMEOUT,
+            )
+          }
+          setProfile({ ...existing, role: 'admin' as const, status: 'active' as const })
+        }
+      } catch {
+        // DB still waking up — render with a minimal admin profile.
+        // The dashboard hooks will re-fetch once the DB responds.
+        setProfile({
           id: userId, full_name: 'Admin', phone_number: null,
-          role: 'admin'  as const, team_lead_id: null,
+          role: 'admin' as const, team_lead_id: null,
           status: 'active' as const, created_at: new Date().toISOString(),
         })
-      } else {
-        if (existing.role !== 'admin' || existing.status !== 'active') {
-          await supabase.from('profiles')
-            .update({ role: 'admin', status: 'active' }).eq('id', userId)
-        }
-        setProfile({ ...existing, role: 'admin' as const, status: 'active' as const })
       }
       return
     }
 
-    // Non-admin: 5 s guard so a paused/slow DB doesn't freeze the loading screen.
-    // The user is still authenticated even if profile fetch times out.
+    // Non-admin: same 8 s guard.
     try {
-      const { data } = await Promise.race([
+      const { data } = await withTimeout(
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('profile fetch timed out')), 5_000)
-        ),
-      ])
+        PROFILE_TIMEOUT,
+      )
       setProfile(data ?? null)
     } catch {
       setProfile(null)

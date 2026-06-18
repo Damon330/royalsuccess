@@ -149,9 +149,10 @@ async function executeChecks(
   })
 
   // ── Auth session ──────────────────────────────────────────────────
-  // getSession() can hang forever when the browser has a stale JWT and the
-  // token-refresh network call freezes (browser-specific SSL/connection issue).
-  // We race it against an 8s deadline so the diagnostics page never locks up.
+  // getSession() triggers a token refresh when the access token is expired.
+  // On Supabase free-tier, GoTrue (auth service) can take 20–30 s to wake
+  // from sleep — this is normal and NOT a "stuck JWT". We race at 40 s:
+  // anything faster than that is just the server starting up.
   update('auth_session', { status: 'running' })
   const tAuth = Date.now()
   let sessionEmail: string | null = null
@@ -160,28 +161,34 @@ async function executeChecks(
   try {
     const raceResult = await Promise.race<GetSessionResult | 'TIMEOUT'>([
       supabase.auth.getSession(),
-      new Promise<'TIMEOUT'>(resolve => setTimeout(() => resolve('TIMEOUT'), 8_000)),
+      new Promise<'TIMEOUT'>(resolve => setTimeout(() => resolve('TIMEOUT'), 40_000)),
     ])
 
     if (raceResult === 'TIMEOUT') {
+      const elapsed = Math.round((Date.now() - tAuth) / 1000)
       onSessionStuck?.()
       update('auth_session', {
         status: 'error',
         latencyMs: Date.now() - tAuth,
         detail: [
-          'Timed out after 8s — browser is stuck in a token-refresh loop.',
+          `Auth service did not respond after ${elapsed}s.`,
           '',
-          'Your stored JWT is expired. Supabase is trying to refresh it via a network',
-          'call that is hanging in this browser. This blocks ALL database operations.',
+          'This usually means your Supabase project is paused (free-tier projects',
+          'pause after 1 week of inactivity). Possible causes:',
           '',
-          '→ Click "Force Sign Out" above. It clears the token from localStorage',
-          '  without making any network call, then reloads the page.',
+          '1. PROJECT PAUSED → Go to supabase.com/dashboard, find your project,',
+          '   click "Resume project", wait 30 s, then Re-run checks.',
           '',
-          'Or run in the browser console:',
+          '2. REFRESH TOKEN EXPIRED → Your session is older than 1 week.',
+          '   Click "Force Sign Out" above and sign in again.',
+          '',
+          '3. NETWORK ISSUE → Check your internet connection.',
+          '',
+          'Console command to clear session:',
           'Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k));location.reload();',
         ].join('\n'),
       })
-      update('auth_match', { status: 'warn', detail: 'Cannot check — session refresh timed out' })
+      update('auth_match', { status: 'warn', detail: 'Cannot check — auth service did not respond in 40 s' })
     } else {
       const { data: { session }, error } = raceResult
       const lat = Date.now() - tAuth
@@ -454,14 +461,15 @@ export default function DiagnosticsPage() {
           </div>
         </div>
 
-        {/* Session-stuck banner */}
+        {/* Auth-slow / session-stuck banner */}
         {sessionStuck && (
           <div className="bg-negative/10 border border-negative/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-negative">Session stuck — stale JWT detected</p>
+              <p className="text-sm font-bold text-negative">Auth service did not respond</p>
               <p className="text-xs text-brand-muted mt-1 leading-relaxed">
-                Your browser has an expired auth token that is blocking all database calls.
-                <strong className="text-brand-text"> Force Sign Out</strong> clears it from localStorage without any network call, then reloads the page.
+                This is usually because your project is paused (free-tier) or your session
+                is older than 1 week. <strong className="text-brand-text">Force Sign Out</strong> clears
+                the stored token and reloads — sign back in and everything will work.
               </p>
             </div>
             <button
