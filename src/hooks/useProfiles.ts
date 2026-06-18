@@ -31,9 +31,10 @@ function invalidateCache() {
   _profilesCacheAt = 0
 }
 
-export function useProfiles() {
-  const [profiles,   setProfiles]   = useState<Profile[]>(() => getCached() ?? [])
-  const [loading,    setLoading]    = useState(() => getCached() === null)
+export function useProfiles(options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
+  const [profiles,   setProfiles]   = useState<Profile[]>(() => enabled ? getCached() ?? [] : [])
+  const [loading,    setLoading]    = useState(() => enabled && getCached() === null)
   const [dbError,    setDbError]    = useState(false)
   const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null)
   const isFirstLoad  = useRef(true)
@@ -42,6 +43,12 @@ export function useProfiles() {
   const channelName = useMemo(() => `profiles-${Math.random().toString(36).slice(2)}`, [])
 
   const fetchProfiles = useCallback(async (force = false) => {
+    if (!enabled) {
+      setProfiles([])
+      setLoading(false)
+      return
+    }
+
     const cached = getCached()
     if (cached && !force) { setProfiles(cached); setLoading(false); return }
 
@@ -68,9 +75,15 @@ export function useProfiles() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      setProfiles([])
+      setLoading(false)
+      return
+    }
+
     fetchProfiles()
 
     // Realtime: pick up new signups immediately so admin sees pending users
@@ -109,7 +122,7 @@ export function useProfiles() {
       channel.unsubscribe()
       supabase.removeChannel(channel)
     }
-  }, [fetchProfiles])
+  }, [enabled, fetchProfiles])
 
   async function approveUser(userId: string, role: Role, teamLeadId?: string) {
     const update: Partial<Profile> = { status: 'active', role }

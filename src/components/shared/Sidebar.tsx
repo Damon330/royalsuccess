@@ -1,20 +1,31 @@
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
 import { useProfiles } from '../../hooks/useProfiles'
+import { useRestrictedMode } from '../../hooks/useRestrictedMode'
+import { supabase } from '../../lib/supabase'
+import {
+  ADMIN_MODULES,
+  RESTRICTED_MODE_PROFILES,
+  type AdminModuleId,
+} from '../../lib/adminModules'
 import { HealthStatusChip } from './SystemHealthMonitor'
+import Modal from './Modal'
+import Button from './Button'
 import toast from 'react-hot-toast'
 import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
   MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt, MdTrendingUp,
-  MdAttachMoney, MdPerson, MdSettings, MdBugReport,
+  MdAttachMoney, MdPerson, MdSettings, MdBugReport, MdLock, MdLockOpen,
 } from 'react-icons/md'
 
 interface NavItem {
   path:   string
   label:  string
   Icon:   React.ElementType
+  moduleId: AdminModuleId
   badge?: number
 }
 
@@ -56,9 +67,14 @@ function SideNavLink({ path, label, Icon, badge }: NavItem) {
 
 export default function Sidebar() {
   const { signOut, profile } = useAuth()
+  const restrictedMode = useRestrictedMode()
   const navigate = useNavigate()
-  const { pendingCount } = useReturns(undefined, 'sidebar')
-  const { pendingUsers } = useProfiles()
+  const [showStartModal, setShowStartModal] = useState(false)
+  const [showExitModal,  setShowExitModal]  = useState(false)
+  const canReadReturns = restrictedMode.isModuleAllowed('inventory')
+  const canReadProfiles = restrictedMode.isModuleAllowed('employees')
+  const { pendingCount } = useReturns(undefined, 'sidebar', canReadReturns)
+  const { pendingUsers } = useProfiles({ enabled: canReadProfiles })
   const pendingAgents    = pendingUsers.length
 
   const initials = (profile?.full_name ?? 'A')
@@ -73,41 +89,48 @@ export default function Sidebar() {
   const groups: NavGroup[] = [
     {
       label: 'Main',
-      items: [{ path: '/admin/dashboard', label: 'Dashboard', Icon: MdDashboard }],
+      items: [{ path: '/admin/dashboard', label: 'Dashboard', Icon: MdDashboard, moduleId: 'dashboard' }],
     },
     {
       label: 'Inventory',
       items: [
-        { path: '/admin/inventory', label: 'Inventory',     Icon: MdInventory2                        },
-        { path: '/admin/assign',    label: 'Assign Phones', Icon: MdPhoneAndroid                      },
-        { path: '/admin/returns',   label: 'Returns',       Icon: MdUndo,    badge: pendingCount       },
-        { path: '/admin/receipts',  label: 'Receipts',      Icon: MdReceipt                           },
+        { path: '/admin/inventory', label: 'Inventory',     Icon: MdInventory2,   moduleId: 'inventory'              },
+        { path: '/admin/assign',    label: 'Assign Phones', Icon: MdPhoneAndroid, moduleId: 'inventory'              },
+        { path: '/admin/returns',   label: 'Returns',       Icon: MdUndo,         moduleId: 'inventory', badge: pendingCount },
+        { path: '/admin/receipts',  label: 'Receipts',      Icon: MdReceipt,      moduleId: 'sales'                  },
       ],
     },
     {
       label: 'Analytics',
       items: [
-        { path: '/admin/reports',  label: 'Reports',  Icon: MdBarChart    },
-        { path: '/admin/insights', label: 'Insights', Icon: MdTrendingUp  },
-        { path: '/admin/payroll',  label: 'Payroll',  Icon: MdAttachMoney },
+        { path: '/admin/reports',  label: 'Reports',  Icon: MdBarChart,    moduleId: 'reports' },
+        { path: '/admin/insights', label: 'Insights', Icon: MdTrendingUp,  moduleId: 'reports' },
+        { path: '/admin/payroll',  label: 'Payroll',  Icon: MdAttachMoney, moduleId: 'payroll' },
       ],
     },
     {
       label: 'Team',
       items: [
-        { path: '/admin/agents',   label: 'Agents',   Icon: MdPeople,  badge: pendingAgents },
-        { path: '/admin/activity', label: 'Activity', Icon: MdHistory                       },
+        { path: '/admin/agents',   label: 'Agents',   Icon: MdPeople,  moduleId: 'employees', badge: pendingAgents },
+        { path: '/admin/activity', label: 'Activity', Icon: MdHistory, moduleId: 'reports'                       },
       ],
     },
     {
       label: 'Account',
       items: [
-        { path: '/admin/profile',      label: 'Profile',      Icon: MdPerson    },
-        { path: '/admin/settings',     label: 'Settings',     Icon: MdSettings  },
-        { path: '/admin/diagnostics',  label: 'Diagnostics',  Icon: MdBugReport },
+        { path: '/admin/profile',      label: 'Profile',      Icon: MdPerson,    moduleId: 'settings'    },
+        { path: '/admin/settings',     label: 'Settings',     Icon: MdSettings,  moduleId: 'settings'    },
+        { path: '/admin/diagnostics',  label: 'Diagnostics',  Icon: MdBugReport, moduleId: 'diagnostics' },
       ],
     },
   ]
+
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => restrictedMode.isModuleAllowed(item.moduleId)),
+    }))
+    .filter((group) => group.items.length > 0)
 
   return (
     <aside className="
@@ -131,7 +154,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 pb-4 overflow-y-auto space-y-5">
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label}>
             <p className="section-label px-3 mb-2">{group.label}</p>
             <div className="space-y-0.5">
@@ -166,6 +189,33 @@ export default function Sidebar() {
           <HealthStatusChip />
         </div>
 
+        {restrictedMode.active ? (
+          <div className="mb-2 rounded-card border border-amber-200 bg-amber-50 px-3 py-3">
+            <div className="flex items-start gap-2">
+              <MdLock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-amber-900">Restricted Work Mode</p>
+                <p className="text-[11px] text-amber-700 truncate">{restrictedMode.profileName}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowExitModal(true)}
+              className="mt-2 flex items-center justify-center gap-2 px-3 py-2 w-full rounded-full text-xs font-bold text-amber-900 bg-white/80 hover:bg-white border border-amber-200 transition-colors"
+            >
+              <MdLockOpen className="w-4 h-4" />
+              Exit Restricted Mode
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowStartModal(true)}
+            className="mb-2 flex items-center gap-3 px-3 py-2.5 w-full rounded-full text-sm font-medium text-brand-muted hover:bg-primary/8 hover:text-brand-text transition-all duration-150 group"
+          >
+            <MdLock className="w-[18px] h-[18px] group-hover:text-primary transition-colors" />
+            Restricted Work Mode
+          </button>
+        )}
+
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 px-3 py-2.5 w-full rounded-full text-sm font-medium text-brand-muted hover:bg-negative/8 hover:text-negative transition-all duration-150 group"
@@ -174,6 +224,170 @@ export default function Sidebar() {
           Sign Out
         </button>
       </div>
+
+      <StartRestrictedModeModal
+        isOpen={showStartModal}
+        onClose={() => setShowStartModal(false)}
+      />
+      <ExitRestrictedModeModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        onExited={() => navigate('/admin/dashboard', { replace: true })}
+      />
     </aside>
+  )
+}
+
+function StartRestrictedModeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const restrictedMode = useRestrictedMode()
+  const selectableModules = ADMIN_MODULES.filter((module) => !module.alwaysAllowed)
+  const [selected, setSelected] = useState<AdminModuleId[]>(['inventory', 'sales'])
+
+  function toggle(moduleId: AdminModuleId) {
+    setSelected((prev) =>
+      prev.includes(moduleId)
+        ? prev.filter((id) => id !== moduleId)
+        : [...prev, moduleId],
+    )
+  }
+
+  function applyProfile(profileId: string) {
+    const profile = RESTRICTED_MODE_PROFILES.find((p) => p.id === profileId)
+    if (profile) setSelected(profile.allowedModules)
+  }
+
+  function start() {
+    if (selected.length === 0) {
+      toast.error('Choose at least one module.')
+      return
+    }
+    restrictedMode.startRestrictedMode({
+      id: 'custom',
+      name: 'Custom Restricted Mode',
+      allowedModules: selected,
+    })
+    toast.success('Restricted Work Mode started.')
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Enter Restricted Work Mode" maxWidth="max-w-lg">
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {RESTRICTED_MODE_PROFILES.map((profile) => (
+            <button
+              key={profile.id}
+              onClick={() => applyProfile(profile.id)}
+              className="rounded-inner border border-brand-border px-3 py-2 text-xs font-semibold text-brand-text hover:border-primary hover:bg-primary/8 transition-colors text-left"
+            >
+              {profile.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-2">
+          <p className="section-label">Available Modules</p>
+          <label className="flex items-start gap-3 rounded-inner border border-brand-border bg-brand-bg px-3 py-3 opacity-80">
+            <input type="checkbox" checked readOnly className="mt-0.5 accent-primary" />
+            <span>
+              <span className="block text-sm font-bold text-brand-text">Dashboard</span>
+              <span className="block text-xs text-brand-muted">Always available as the home page</span>
+            </span>
+          </label>
+          {selectableModules.map((module) => (
+            <label
+              key={module.id}
+              className="flex items-start gap-3 rounded-inner border border-brand-border px-3 py-3 hover:bg-brand-bg transition-colors cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(module.id)}
+                onChange={() => toggle(module.id)}
+                className="mt-0.5 accent-primary"
+              />
+              <span>
+                <span className="block text-sm font-bold text-brand-text">{module.label}</span>
+                <span className="block text-xs text-brand-muted">{module.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
+          <Button onClick={start} fullWidth>Start Restricted Mode</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function ExitRestrictedModeModal({
+  isOpen,
+  onClose,
+  onExited,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onExited: () => void
+}) {
+  const { session } = useAuth()
+  const restrictedMode = useRestrictedMode()
+  const [password, setPassword] = useState('')
+  const [checking, setChecking] = useState(false)
+
+  async function verifyAndExit() {
+    const email = session?.user.email
+    if (!email) {
+      toast.error('Admin session is unavailable.')
+      return
+    }
+    if (!password.trim()) {
+      toast.error('Enter the administrator password.')
+      return
+    }
+
+    setChecking(true)
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    setChecking(false)
+
+    if (error) {
+      toast.error('Password incorrect. Restricted Mode is still active.')
+      return
+    }
+
+    restrictedMode.stopRestrictedMode()
+    setPassword('')
+    toast.success('Full administrator access restored.')
+    onClose()
+    onExited()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Exit Restricted Work Mode" maxWidth="max-w-md">
+      <div className="space-y-4">
+        <p className="text-sm text-brand-muted">
+          Re-enter the administrator password to restore full access.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-brand-text mb-1">Administrator Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') verifyAndExit() }}
+            autoFocus
+            className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
+          <Button onClick={verifyAndExit} loading={checking} fullWidth>Restore Access</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }

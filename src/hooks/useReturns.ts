@@ -19,13 +19,19 @@ export const STOCK_RETURN_REASONS: ReturnReason[] = [
 const QUERY_TIMEOUT  = 8000
 const MUTATE_TIMEOUT = 12000
 
-export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-main') {
+export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-main', enabled = true) {
   const [returns,      setReturns]      = useState<PhoneReturn[]>([])
   const [loading,      setLoading]      = useState(true)
   const [dbError,      setDbError]      = useState(false)
   const [missingTable, setMissingTable] = useState(false)
 
   const fetchReturns = useCallback(async () => {
+    if (!enabled) {
+      setReturns([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setDbError(false)
     setMissingTable(false)
@@ -84,9 +90,15 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
     } finally {
       setLoading(false)
     }
-  }, [statusFilter])
+  }, [enabled, statusFilter])
 
   useEffect(() => {
+    if (!enabled) {
+      setReturns([])
+      setLoading(false)
+      return
+    }
+
     fetchReturns()
 
     const channel = supabase
@@ -97,7 +109,7 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
       .subscribe()
 
     return () => { channel.unsubscribe(); supabase.removeChannel(channel) }
-  }, [fetchReturns])
+  }, [enabled, fetchReturns])
 
   // ── Agent / TL submits a return for an ASSIGNED phone ─────────
   async function submitReturn(

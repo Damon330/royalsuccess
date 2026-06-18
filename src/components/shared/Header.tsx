@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
+import { useRestrictedMode } from '../../hooks/useRestrictedMode'
 import { useTheme } from '../../context/ThemeContext'
 import NotificationBell from './NotificationBell'
 import toast from 'react-hot-toast'
@@ -24,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function Header({ title, subtitle }: HeaderProps) {
   const { profile, session, signOut } = useAuth()
+  const restrictedMode = useRestrictedMode()
   const { theme, toggleTheme, isDark } = useTheme()
   const navigate = useNavigate()
   const [dropdownOpen,  setDropdownOpen]  = useState(false)
@@ -39,6 +41,8 @@ export default function Header({ title, subtitle }: HeaderProps) {
     || session?.user.email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
   const profilePath  = isAdminUser ? '/admin/profile'  : '/account'
   const settingsPath = isAdminUser ? '/admin/settings' : '/account'
+  const canOpenAdminSettings = !isAdminUser || restrictedMode.isModuleAllowed('settings')
+  const canOpenInventory = !isAdminUser || restrictedMode.isModuleAllowed('inventory')
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -119,11 +123,13 @@ export default function Header({ title, subtitle }: HeaderProps) {
           </AnimatePresence>
         </HdrBtn>
 
-        <HdrBtn title="Inventory" onClick={() => navigate(profile?.role === 'admin' ? '/admin/inventory' : '/')}>
-          <MdGridView className="w-[18px] h-[18px]" />
-        </HdrBtn>
+        {canOpenInventory && (
+          <HdrBtn title="Inventory" onClick={() => navigate(profile?.role === 'admin' ? '/admin/inventory' : '/')}>
+            <MdGridView className="w-[18px] h-[18px]" />
+          </HdrBtn>
+        )}
 
-        <NotificationBell userId={session?.user.id} />
+        {!restrictedMode.active && <NotificationBell userId={session?.user.id} />}
 
         {/* Divider */}
         <div className="w-px h-5 bg-brand-border mx-1.5 rounded-full" />
@@ -164,7 +170,7 @@ export default function Header({ title, subtitle }: HeaderProps) {
                       <p className="text-xs text-brand-muted truncate mt-0.5">{session?.user.email}</p>
                       <span className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
                         <MdVerified className="w-3 h-3" />
-                        {ROLE_LABELS[profile?.role ?? ''] ?? profile?.role}
+                        {restrictedMode.active ? 'Restricted Mode' : ROLE_LABELS[profile?.role ?? ''] ?? profile?.role}
                       </span>
                     </div>
                   </div>
@@ -172,8 +178,12 @@ export default function Header({ title, subtitle }: HeaderProps) {
 
                 {/* Links */}
                 <div className="py-1.5 px-1.5 space-y-0.5">
-                  <DdItem icon={<MdPerson   className="w-4 h-4" />} label="View Profile" to={profilePath}  close={() => setDropdownOpen(false)} />
-                  <DdItem icon={<MdSettings className="w-4 h-4" />} label="Settings"     to={settingsPath} close={() => setDropdownOpen(false)} />
+                  {canOpenAdminSettings && (
+                    <>
+                      <DdItem icon={<MdPerson   className="w-4 h-4" />} label="View Profile" to={profilePath}  close={() => setDropdownOpen(false)} />
+                      <DdItem icon={<MdSettings className="w-4 h-4" />} label="Settings"     to={settingsPath} close={() => setDropdownOpen(false)} />
+                    </>
+                  )}
                 </div>
 
                 <div className="py-1.5 px-1.5 border-t border-brand-border">
