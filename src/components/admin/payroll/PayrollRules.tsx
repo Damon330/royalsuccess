@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Button from '../../shared/Button'
 import Modal from '../../shared/Modal'
 import Spinner from '../../shared/Spinner'
@@ -68,7 +68,7 @@ function ConfigModal({ initial, isEdit, onSave, onClose, profiles }: {
           <select
             value={form.employee_id ?? ''}
             onChange={(e) => set('employee_id', e.target.value || null)}
-            className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+            className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
           >
             <option value="">Global default (everyone without a specific rule)</option>
             {profiles.map((p) => (
@@ -95,7 +95,7 @@ function ConfigModal({ initial, isEdit, onSave, onClose, profiles }: {
             <select
               value={form.payment_frequency}
               onChange={(e) => set('payment_frequency', e.target.value as ConfigFormData['payment_frequency'])}
-              className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
             >
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
@@ -254,14 +254,14 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
               <div className="bg-warning-light border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                 <MdWarning className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-amber-800">No global default set</p>
-                  <p className="text-xs text-amber-700 mt-0.5">
+                  <p className="text-sm font-medium text-brand-text">No global default set</p>
+                  <p className="text-xs text-warning mt-0.5">
                     Employees without a specific rule will receive ₦0. Add a global default to avoid this.
                   </p>
                 </div>
                 <button
                   onClick={() => setModal({ data: DEFAULT_FORM, isEdit: false })}
-                  className="flex-shrink-0 text-xs font-semibold text-amber-700 bg-amber-200 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors"
+                  className="flex-shrink-0 text-xs font-semibold text-warning bg-amber-200 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   Add Default
                 </button>
@@ -284,7 +284,7 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
             ) : (
               <div className="bg-white border border-brand-border rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-brand-border">
+                  <thead className="bg-brand-bg border-b border-brand-border">
                     <tr>
                       {['Employee', 'Role', 'Base Salary', 'Commission', 'Notes', ''].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">
@@ -295,7 +295,7 @@ export default function PayrollRules({ configs, loading, onUpsert, onDelete }: P
                   </thead>
                   <tbody className="divide-y divide-brand-border">
                     {empConfigs.map((c) => (
-                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={c.id} className="hover:bg-brand-bg transition-colors">
                         <td className="px-4 py-3 font-medium text-brand-text">
                           {c.employee?.full_name ?? '—'}
                         </td>

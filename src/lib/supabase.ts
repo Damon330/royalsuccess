@@ -10,11 +10,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// Single Supabase client for the entire application.
+//
+// DO NOT add a custom global.fetch here. Supabase JS v2 uses navigator.locks
+// to serialise token-refresh across browser tabs — only one tab calls
+// /auth/v1/token at a time; others wait and read the result from localStorage.
+// A custom fetch wrapper that replaces init.signal with its own AbortController
+// silently drops the library's internal cancellation signal, breaking that
+// coordination and causing competing tabs to consume each other's refresh tokens.
+//
+// Token-refresh timeouts are handled by the browser's own networking stack.
+// Database-call timeouts are handled individually by withTimeout() in each hook.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession:    true,
-    autoRefreshToken:  true,
-    detectSessionInUrl: true,
+    persistSession:     true,   // session lives in localStorage; shared across tabs
+    autoRefreshToken:   true,   // Supabase refreshes the JWT automatically
+    detectSessionInUrl: true,   // required for OAuth and magic-link flows
   },
   realtime: {
     params: { eventsPerSecond: 10 },

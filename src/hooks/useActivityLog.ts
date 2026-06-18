@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ActivityLogEntry, ActivityActionType } from '../types'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 100   // one day rarely exceeds this; keeps day-view complete in a single fetch
 
 export type { ActivityLogEntry, ActivityActionType } from '../types'
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Spinner from '../../shared/Spinner'
 import Button from '../../shared/Button'
 import { useAuth } from '../../../hooks/useAuth'
@@ -61,7 +61,7 @@ function RunRow({ run, onStatusChange, onFetchEntries }: {
       {/* Header row */}
       <button
         onClick={toggleExpand}
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-brand-bg transition-colors text-left"
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
@@ -113,7 +113,7 @@ function RunRow({ run, onStatusChange, onFetchEntries }: {
         <div className="border-t border-brand-border">
           {/* Status controls */}
           {run.status !== 'paid' && (
-            <div className="px-5 py-3 bg-gray-50 flex items-center justify-between border-b border-brand-border">
+            <div className="px-5 py-3 bg-brand-bg flex items-center justify-between border-b border-brand-border">
               <p className="text-xs text-brand-muted">
                 {run.status === 'draft'
                   ? 'Review the breakdown below, then approve when ready.'
@@ -135,7 +135,7 @@ function RunRow({ run, onStatusChange, onFetchEntries }: {
           ) : entries && entries.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-brand-bg">
                   <tr>
                     {['Employee', 'Role', 'Units', 'Revenue', 'Base', 'Commission', 'Bonus', 'Total', 'Target'].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide whitespace-nowrap">
@@ -146,7 +146,7 @@ function RunRow({ run, onStatusChange, onFetchEntries }: {
                 </thead>
                 <tbody className="divide-y divide-brand-border">
                   {entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={entry.id} className="hover:bg-brand-bg transition-colors">
                       <td className="px-4 py-3 font-medium text-brand-text whitespace-nowrap">
                         {entry.employee_name}
                       </td>

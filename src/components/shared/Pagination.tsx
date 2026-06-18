@@ -38,7 +38,7 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="px-3 py-1.5 text-sm font-medium text-brand-muted border border-brand-border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-brand-muted border border-brand-border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors"
         >
           ← Prev
         </button>
@@ -53,7 +53,7 @@ export default function Pagination({
               className={`min-w-[36px] h-9 text-sm font-medium rounded-lg border transition-colors ${
                 p === page
                   ? 'bg-primary text-white border-primary'
-                  : 'text-brand-text border-brand-border hover:bg-gray-50'
+                  : 'text-brand-text border-brand-border hover:bg-brand-bg'
               }`}
             >
               {p}
@@ -64,7 +64,7 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="px-3 py-1.5 text-sm font-medium text-brand-muted border border-brand-border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-brand-muted border border-brand-border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-bg transition-colors"
         >
           Next →
         </button>

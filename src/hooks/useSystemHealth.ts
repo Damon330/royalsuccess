@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import { withTimeout } from '../lib/withTimeout'
 import { queryClient } from '../lib/queryClient'
 
 export type HealthStatus = 'checking' | 'healthy' | 'slow' | 'degraded' | 'down'
@@ -18,133 +16,136 @@ export interface HealthState {
   lastChecked:  Date | null
   errorCode:    string | null
   errorMessage: string | null
-  authEmail:    string | null    // What the DB sees for the current session
-  isAdmin:      boolean | null   // Whether DB agrees this is an admin
+  authEmail:    string | null
+  isAdmin:      boolean | null
   checks:       HealthCheck[]
   consecutive:  number
 }
 
-const LATENCY_SLOW_MS  = 2_000
-const LATENCY_BAD_MS   = 5_000
-const POLL_INTERVAL_MS = 30_000
+// Serialisable form sent over BroadcastChannel (Date → ISO string)
+interface HealthMessage {
+  type:  'HEALTH_RESULT'
+  state: Omit<HealthState, 'lastChecked'> & { lastChecked: string | null }
+}
 
+// ── Tuning ────────────────────────────────────────────────────────────────────
+const POLL_MS      = 60_000   // 60 s between background checks
+const VIS_COOLDOWN = 45_000   // min gap before a tab-focus re-check
+const JITTER_MAX   = 6_000    // spread initial checks 0–6 s across tabs
+const PING_TIMEOUT = 8_000    // abort the ping fetch after 8 s
+const LAT_SLOW     = 4_000    // ms above which status = slow
+const LAT_BAD      = 10_000   // ms above which status = degraded
+const BC_CHANNEL   = 'royal-success-health-v1'
+
+// Read once at module init — never change at runtime, so no reactivity needed
+const SUPABASE_URL      = String(import.meta.env.VITE_SUPABASE_URL     ?? '')
+const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? '')
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const INITIAL: HealthState = {
   status: 'checking', latencyMs: null, lastChecked: null,
   errorCode: null, errorMessage: null, authEmail: null, isAdmin: null,
   checks: [], consecutive: 0,
 }
 
-export function useSystemHealth() {
-  const [health,  setHealth]  = useState<HealthState>(INITIAL)
-  const wasDownRef     = useRef(false)
-  const consecutiveRef = useRef(0)
-  const intervalRef    = useRef<ReturnType<typeof setInterval>>()
+function deserialise(msg: HealthMessage['state']): HealthState {
+  return { ...msg, lastChecked: msg.lastChecked ? new Date(msg.lastChecked) : null }
+}
 
-  const check = useCallback(async () => {
-    setHealth((prev) => ({
+function serialise(s: HealthState): HealthMessage['state'] {
+  return { ...s, lastChecked: s.lastChecked?.toISOString() ?? null }
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
+export function useSystemHealth() {
+  const [health, setHealth] = useState<HealthState>(INITIAL)
+
+  // Mutable refs — never cause re-renders, safe inside intervals
+  const consecutiveRef = useRef(0)
+  const wasDownRef     = useRef(false)
+  const inFlightRef    = useRef(false)      // prevents concurrent checks in same tab
+  const lastCheckedRef = useRef(0)          // epoch ms of last completed check
+  const intervalRef    = useRef<ReturnType<typeof setInterval>>()
+  const startTimerRef  = useRef<ReturnType<typeof setTimeout>>()
+  const bcRef          = useRef<BroadcastChannel | null>(null)
+  const doCheckRef     = useRef<() => Promise<void>>()   // stable ref breaks stale-closure trap
+
+  // ── Apply a health result (own check or received from another tab) ─────────
+  const applyResult = useCallback((state: HealthState) => {
+    setHealth(state)
+    consecutiveRef.current = state.consecutive
+    wasDownRef.current     = state.status === 'down' || state.status === 'degraded'
+    lastCheckedRef.current = Date.now()
+  }, [])
+
+  // ── Execute a health check ────────────────────────────────────────────────
+  // Uses a raw fetch() to GET /rest/v1/ — PostgREST returns its OpenAPI schema.
+  // This call never touches the Supabase JS client auth layer, so it cannot hang
+  // on JWT token-refresh the way supabase.rpc() can.
+  const doCheck = useCallback(async () => {
+    if (inFlightRef.current) return
+    inFlightRef.current = true
+
+    setHealth(prev => ({
       ...prev,
-      status: prev.status === 'down' || prev.status === 'healthy' ? 'checking' : prev.status,
+      status: prev.status === 'healthy' || prev.status === 'down' ? 'checking' : prev.status,
     }))
 
-    const checks: HealthCheck[] = []
-    let anyFailed        = false
-    let errorCode:    string | null = null
+    const t0         = Date.now()
+    const controller = new AbortController()
+    const pingTimer  = setTimeout(() => controller.abort(), PING_TIMEOUT)
+
+    let ok            = false
+    let latencyMs     = 0
+    let detail        = ''
     let errorMessage: string | null = null
-    let authEmail:    string | null = null
-    let isAdmin:      boolean | null = null
 
-    // ── Check 1: health_check() RPC ─────────────────────────────────────
-    // Returns exact email the DB sees + is_admin flag.
-    // If the RPC doesn't exist yet (migration not run), fall back to raw query.
-    const t0 = Date.now()
     try {
-      const { data, error } = await withTimeout(supabase.rpc('health_check'), 35_000)
-      const latency = Date.now() - t0
-
-      if (error) {
-        // RPC might not exist yet — fall through to raw query check
-        checks.push({
-          name: 'DB Health RPC',
-          ok: false,
-          latencyMs: latency,
-          detail: `[${error.code ?? 'ERR'}] ${error.message} — run v2-full-migration.sql`,
-        })
-        errorCode    = error.code ?? null
-        errorMessage = error.message
-        anyFailed    = true
-      } else {
-        const hc = data as { ok: boolean; is_admin: boolean; auth_email: string; ts: number }
-        authEmail = hc?.auth_email ?? null
-        isAdmin   = hc?.is_admin  ?? null
-        checks.push({
-          name: 'DB Health RPC',
-          ok: true,
-          latencyMs: latency,
-          detail: `Connected · email=${hc?.auth_email ?? 'null'} · is_admin=${hc?.is_admin}`,
-        })
-
-        // Warn if admin email doesn't match (JWT issue)
-        if (hc?.is_admin === false && hc?.auth_email && hc.auth_email !== 'unauthenticated') {
-          checks.push({
-            name: 'Admin JWT Check',
-            ok: false,
-            latencyMs: null,
-            detail: `DB sees email "${hc.auth_email}" but admin_email is "patrickwlax@gmail.com". Sign out and back in.`,
-          })
-          anyFailed    = true
-          errorMessage = `Admin email mismatch: DB sees "${hc.auth_email}". Sign out and sign in again.`
-        } else if (hc?.is_admin === true) {
-          checks.push({ name: 'Admin JWT Check', ok: true, latencyMs: null, detail: 'Admin identity confirmed by DB' })
-        }
-      }
-    } catch (err) {
-      const latency = Date.now() - t0
-      errorMessage = err instanceof Error ? err.message : String(err)
-      checks.push({ name: 'DB Health RPC', ok: false, latencyMs: latency, detail: errorMessage })
-      anyFailed = true
-    }
-
-    // ── Check 2: Auth session ────────────────────────────────────────────
-    const t1 = Date.now()
-    try {
-      const { data: { session }, error: sErr } = await supabase.auth.getSession()
-      const latency = Date.now() - t1
-
-      if (sErr || !session) {
-        checks.push({ name: 'Auth Session', ok: false, latencyMs: latency, detail: sErr?.message ?? 'No active session — please sign in' })
-        anyFailed = true
-        if (!errorMessage) errorMessage = 'No active session'
-      } else {
-        const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
-        if (expiresIn < 300) {
-          await supabase.auth.refreshSession()
-          checks.push({ name: 'Auth Session', ok: true, latencyMs: latency, detail: 'Token auto-refreshed (was expiring)' })
-        } else {
-          checks.push({ name: 'Auth Session', ok: true, latencyMs: latency, detail: `Valid for ${Math.floor(expiresIn / 60)}m · ${session.user.email}` })
-        }
-      }
-    } catch (err) {
-      checks.push({ name: 'Auth Session', ok: false, latencyMs: Date.now() - t1, detail: String(err) })
-      anyFailed = true
-    }
-
-    const totalLatency = checks.reduce((s, c) => s + (c.latencyMs ?? 0), 0)
-
-    if (anyFailed) {
-      consecutiveRef.current += 1
-      wasDownRef.current = true
-      const status: HealthStatus = consecutiveRef.current === 1 ? 'degraded' : 'down'
-      setHealth({
-        status,
-        latencyMs:    totalLatency,
-        lastChecked:  new Date(),
-        errorCode,
-        errorMessage,
-        authEmail,
-        isAdmin,
-        checks,
-        consecutive: consecutiveRef.current,
+      // /auth/v1/health is the GoTrue service health endpoint.
+      // It requires NO authentication — only the project apikey header.
+      // It returns {"version":"...","name":"GoTrue"} with HTTP 200 whenever
+      // the Supabase project is awake, without touching the database or the
+      // RLS/PostgREST layer that can return 401 on schema requests.
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
+        headers: { 'apikey': SUPABASE_ANON_KEY },
+        signal: controller.signal,
       })
+      clearTimeout(pingTimer)
+      latencyMs = Date.now() - t0
+      ok        = res.ok
+      detail    = ok
+        ? `HTTP ${res.status} · ${latencyMs}ms`
+        : `HTTP ${res.status} – Supabase project may be paused or auth service is down`
+      if (!ok) errorMessage = detail
+    } catch (err) {
+      clearTimeout(pingTimer)
+      latencyMs = Date.now() - t0
+      const isAbort = (err as { name?: string })?.name === 'AbortError'
+      const msg     = err instanceof Error ? err.message : String(err)
+      detail        = isAbort ? `Request timed out after ${PING_TIMEOUT / 1000}s` : msg
+      errorMessage  = detail
+    } finally {
+      inFlightRef.current = false
+    }
+
+    const checks: HealthCheck[] = [{ name: 'Database Ping', ok, latencyMs, detail }]
+
+    let result: HealthState
+
+    if (!ok) {
+      consecutiveRef.current += 1
+      wasDownRef.current      = true
+
+      const status: HealthStatus =
+        consecutiveRef.current >= 5 ? 'down'     :
+        consecutiveRef.current >= 3 ? 'degraded' :
+                                      'slow'
+
+      result = {
+        status, latencyMs, lastChecked: new Date(),
+        errorCode: null, errorMessage, authEmail: null, isAdmin: null,
+        checks, consecutive: consecutiveRef.current,
+      }
     } else {
       if (wasDownRef.current) {
         queryClient.invalidateQueries()
@@ -152,37 +153,69 @@ export function useSystemHealth() {
       }
       consecutiveRef.current = 0
 
-      const worstLatency = Math.max(...checks.map((c) => c.latencyMs ?? 0))
       const status: HealthStatus =
-        worstLatency > LATENCY_BAD_MS  ? 'degraded' :
-        worstLatency > LATENCY_SLOW_MS ? 'slow'      : 'healthy'
+        latencyMs > LAT_BAD  ? 'degraded' :
+        latencyMs > LAT_SLOW ? 'slow'     : 'healthy'
 
-      setHealth({
-        status, latencyMs: totalLatency, lastChecked: new Date(),
-        errorCode: null, errorMessage: null, authEmail, isAdmin,
+      result = {
+        status, latencyMs, lastChecked: new Date(),
+        errorCode: null, errorMessage: null, authEmail: null, isAdmin: null,
         checks, consecutive: 0,
-      })
+      }
     }
-  }, [])
 
+    applyResult(result)
+
+    // Broadcast result to all other open tabs — only ONE network call per cycle
+    bcRef.current?.postMessage({ type: 'HEALTH_RESULT', state: serialise(result) } satisfies HealthMessage)
+  }, [applyResult])
+
+  // Keep doCheckRef pointing at the latest doCheck (breaks stale-closure trap)
+  useEffect(() => { doCheckRef.current = doCheck }, [doCheck])
+
+  // ── BroadcastChannel — one-time setup ─────────────────────────────────────
   useEffect(() => {
-    check()
-    intervalRef.current = setInterval(check, POLL_INTERVAL_MS)
+    if (typeof BroadcastChannel === 'undefined') return
 
-    function onVisibility() {
-      if (document.visibilityState === 'visible') check()
+    const bc = new BroadcastChannel(BC_CHANNEL)
+    bcRef.current = bc
+
+    bc.onmessage = (event: MessageEvent<HealthMessage>) => {
+      if (event.data?.type !== 'HEALTH_RESULT') return
+      applyResult(deserialise(event.data.state))
+      // Re-arm our interval so every tab stays in sync
+      clearInterval(intervalRef.current)
+      intervalRef.current = setInterval(() => doCheckRef.current?.(), POLL_MS)
     }
-    function onOnline() { check() }
 
-    document.addEventListener('visibilitychange', onVisibility)
+    return () => { bc.close(); bcRef.current = null }
+  }, [applyResult])
+
+  // ── Polling + visibility / online events ──────────────────────────────────
+  useEffect(() => {
+    const jitter = Math.floor(Math.random() * JITTER_MAX)
+    startTimerRef.current = setTimeout(() => {
+      doCheckRef.current?.()
+      intervalRef.current = setInterval(() => doCheckRef.current?.(), POLL_MS)
+    }, jitter)
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastCheckedRef.current < VIS_COOLDOWN) return
+      doCheckRef.current?.()
+    }
+    const onOnline = () => doCheckRef.current?.()
+
+    document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', onOnline)
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-      document.removeEventListener('visibilitychange', onVisibility)
+      clearTimeout(startTimerRef.current)
+      clearInterval(intervalRef.current)
+      document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', onOnline)
     }
-  }, [check])
+  }, [])
 
-  return { health, recheckNow: check }
+  return { health, recheckNow: doCheck }
 }

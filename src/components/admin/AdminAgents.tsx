@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+﻿import { useState, useRef } from 'react'
 import Header from '../shared/Header'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
@@ -90,17 +90,17 @@ export default function AdminAgents() {
       <div className="p-6 space-y-6">
 
         {isError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-sm font-semibold text-brand-text">Database connection failed</p>
+              <p className="text-xs text-warning mt-0.5">
                 {(error as Error)?.message ?? 'Go to supabase.com → resume project → Refresh.'}
               </p>
             </div>
             <button
               onClick={() => refetch()}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs font-medium text-warning hover:text-amber-900 bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Refresh
             </button>
@@ -113,7 +113,7 @@ export default function AdminAgents() {
             {(['all', 'agent', 'team_lead'] as const).map((r) => (
               <button key={r} onClick={() => { setRoleFilter(r); setPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  roleFilter === r ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-gray-50'
+                  roleFilter === r ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-brand-bg'
                 }`}>
                 {r === 'all' ? 'All Roles' : r === 'team_lead' ? 'Team Lead' : 'Agent'}
               </button>
@@ -121,7 +121,7 @@ export default function AdminAgents() {
             {(['all', 'active', 'pending'] as const).map((s) => (
               <button key={s} onClick={() => { setStatusFilter(s); setPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  statusFilter === s ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-gray-50'
+                  statusFilter === s ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-brand-bg'
                 }`}>
                 {s === 'all' ? 'All Status' : s === 'active' ? 'Active' : 'Pending'}
               </button>
@@ -157,7 +157,7 @@ export default function AdminAgents() {
                 </h2>
                 <div className="space-y-2">
                   {pending.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-3 border border-yellow-100">
+                    <div key={user.id} className="flex items-center justify-between bg-brand-surface rounded-inner px-4 py-3 border border-warning/25">
                       <div>
                         <p className="text-sm font-medium text-brand-text">{user.full_name}</p>
                         <p className="text-xs text-brand-muted">{new Date(user.created_at).toLocaleDateString()}</p>
@@ -170,7 +170,7 @@ export default function AdminAgents() {
             )}
 
             {/* Active members table */}
-            <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+            <div className="bg-brand-surface rounded-card border border-brand-border overflow-hidden">
               <div className="px-6 py-4 border-b border-brand-border flex items-center justify-between">
                 <h2 className="text-base font-semibold text-brand-text">
                   Active Members
@@ -180,7 +180,7 @@ export default function AdminAgents() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-brand-border">
+                  <thead className="bg-brand-bg border-b border-brand-border">
                     <tr>
                       {['Name', 'Role', 'Team Lead', 'Joined', 'Actions'].map((h) => (
                         <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
@@ -189,7 +189,7 @@ export default function AdminAgents() {
                   </thead>
                   <tbody className="divide-y divide-brand-border">
                     {active.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={user.id} className="hover:bg-brand-bg transition-colors">
                         <td className="px-5 py-4 font-medium text-brand-text">{user.full_name}</td>
                         <td className="px-5 py-4">
                           <Badge variant={user.role === 'team_lead' ? 'blue' : 'green'}>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Button from '../../shared/Button'
 import Modal from '../../shared/Modal'
 import Spinner from '../../shared/Spinner'
@@ -143,7 +143,7 @@ function TargetModal({ initial, onSave, onClose, profiles }: {
             <select
               value={form.employee_id}
               onChange={(e) => set('employee_id', e.target.value)}
-              className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
             >
               <option value="">— Select employee —</option>
               {profiles.map((p) => (
@@ -157,7 +157,7 @@ function TargetModal({ initial, onSave, onClose, profiles }: {
           <div className={`rounded-xl px-4 py-3 text-sm font-medium flex items-start gap-2 ${
             groupEmployees.length > 0
               ? 'bg-primary-pale text-primary'
-              : 'bg-amber-50 text-amber-700'
+              : 'bg-amber-50 text-warning'
           }`}>
             <MdPeople className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span>
@@ -375,7 +375,7 @@ export default function PayrollTargets({ targets, loading, onUpsert, onDelete, o
       ) : (
         <div className="bg-white border border-brand-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-brand-border">
+            <thead className="bg-brand-bg border-b border-brand-border">
               <tr>
                 {['Employee', 'Metric', 'Period', 'Target', 'Reward Mode', 'Reward', 'Status', ''].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide whitespace-nowrap">
@@ -386,7 +386,7 @@ export default function PayrollTargets({ targets, loading, onUpsert, onDelete, o
             </thead>
             <tbody className="divide-y divide-brand-border">
               {targets.map((t) => (
-                <tr key={t.id} className={`hover:bg-gray-50 transition-colors ${!t.active ? 'opacity-50' : ''}`}>
+                <tr key={t.id} className={`hover:bg-brand-bg transition-colors ${!t.active ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3 font-medium text-brand-text whitespace-nowrap">
                     {t.employee?.full_name ?? '—'}
                   </td>

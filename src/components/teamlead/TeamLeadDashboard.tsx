@@ -341,7 +341,7 @@ export default function TeamLeadDashboard() {
 
                     <div className="flex items-center gap-3 p-4">
                       <div className={`rounded-xl p-2 flex-shrink-0 ${
-                        phone.status === 'sold' ? 'bg-gray-50' : stale ? 'bg-orange-50' : 'bg-primary-pale'
+                        phone.status === 'sold' ? 'bg-brand-bg' : stale ? 'bg-warning/10' : 'bg-primary-pale'
                       }`}>
                         <MdPhoneAndroid className={`w-5 h-5 ${
                           phone.status === 'sold' ? 'text-gray-400' : stale ? 'text-orange-500' : 'text-primary'
@@ -363,7 +363,7 @@ export default function TeamLeadDashboard() {
                           </Button>
                           <button
                             onClick={() => setReturningPhone(phone)}
-                            className="flex items-center justify-center w-9 h-9 bg-gray-50 hover:bg-amber-50 hover:text-amber-700 text-brand-muted border border-brand-border hover:border-amber-300 rounded-xl transition-colors"
+                            className="flex items-center justify-center w-9 h-9 bg-brand-bg hover:bg-warning/10 hover:text-warning text-brand-muted border border-brand-border hover:border-warning/50 rounded-xl transition-colors"
                             title="Return to store"
                           >
                             <MdUndo className="w-4 h-4" />
@@ -395,7 +395,7 @@ export default function TeamLeadDashboard() {
 
       {saleLoading && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 text-center space-y-3">
+          <div className="bg-brand-surface rounded-card p-6 text-center space-y-3">
             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm font-medium text-brand-text">Generating receipt…</p>
           </div>

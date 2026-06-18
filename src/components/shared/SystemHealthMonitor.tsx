@@ -41,7 +41,7 @@ export default function SystemHealthMonitor() {
   const [checking, setChecking] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  const show    = health.status !== 'healthy' && health.status !== 'checking'
+  const show    = health.status === 'degraded' || health.status === 'down'
   const cfg     = STATUS_CFG[health.status]
   const timeAgo = health.lastChecked
     ? `${Math.round((Date.now() - health.lastChecked.getTime()) / 1000)}s ago`
@@ -253,13 +253,17 @@ export function HealthStatusChip() {
     setChecking(false)
   }
 
+  // 'slow' = connection works but latency is high — show as "Connected" so users
+  // aren't alarmed by a perfectly functional (if slightly slower) connection.
   const label: Record<HealthStatus, string> = {
     checking: 'Checking…',
     healthy:  'Connected',
-    slow:     'Slow',
+    slow:     'Connected',
     degraded: 'Degraded',
     down:     'Disconnected',
   }
+
+  const isUnhealthy = health.status === 'degraded' || health.status === 'down'
 
   return (
     <button
@@ -270,17 +274,17 @@ export function HealthStatusChip() {
     >
       <PingDot status={checking ? 'checking' : health.status} />
       <span className={`flex-1 text-left text-xs font-semibold ${
-        health.status === 'healthy'  ? 'text-positive'    :
         health.status === 'down'     ? 'text-negative'    :
         health.status === 'checking' ? 'text-brand-muted' :
-                                       'text-amber-500'
+        health.status === 'degraded' ? 'text-amber-500'   :
+                                       'text-positive'
       }`}>
         {checking ? 'Checking…' : label[health.status]}
       </span>
-      {health.latencyMs !== null && health.status === 'healthy' && (
+      {health.latencyMs !== null && !isUnhealthy && !checking && (
         <span className="text-[10px] font-mono text-brand-muted">{health.latencyMs}ms</span>
       )}
-      {health.status !== 'healthy' && health.status !== 'checking' && (
+      {isUnhealthy && (
         <MdWifiOff className="w-3.5 h-3.5 text-negative flex-shrink-0" />
       )}
       <MdRefresh className={`w-3.5 h-3.5 text-brand-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ${checking ? 'animate-spin !opacity-100' : ''}`} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import { useQueryClient } from '@tanstack/react-query'
 import Header from '../shared/Header'
@@ -325,7 +325,7 @@ export default function AdminInventory() {
   const scanCamTabClass = (t: ScanCamTab) =>
     `flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
       scanCamTab === t
-        ? 'bg-white text-brand-text shadow-sm'
+        ? 'bg-brand-surface text-brand-text shadow-sm'
         : 'text-brand-muted hover:text-brand-text'
     }`
 
@@ -335,16 +335,16 @@ export default function AdminInventory() {
       <div className="p-6 space-y-5">
 
         {invHasError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-sm font-semibold text-brand-text">Database connection failed</p>
+              <p className="text-xs text-warning mt-0.5">
                 {(invErrorObj as Error)?.message ?? 'Go to supabase.com → resume project → Refresh.'}
               </p>
             </div>
             <button onClick={() => refetchInv()}
-              className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
+              className="flex items-center gap-1 text-xs text-warning bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg transition-colors">
               <MdRefresh className="w-4 h-4" /> Refresh
             </button>
           </div>
@@ -360,7 +360,7 @@ export default function AdminInventory() {
             {allFilters.map((f) => (
               <button key={f} onClick={() => { setFilter(f); setInvPage(1) }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  filter === f ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-gray-50'
+                  filter === f ? 'bg-primary text-white' : 'bg-white border border-brand-border text-brand-muted hover:bg-brand-bg'
                 }`}>
                 {f === 'all' ? 'All' : STATUS_LABEL[f as PhoneStatus]}
               </button>
@@ -377,7 +377,7 @@ export default function AdminInventory() {
               }}
               className="border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1 sm:w-64" />
             <button onClick={() => setShowScannerModal(true)} title="Scan IMEI / barcode"
-              className="flex items-center gap-1.5 border border-brand-border bg-white hover:bg-gray-50 text-brand-text px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+              className="flex items-center gap-1.5 border border-brand-border bg-white hover:bg-brand-bg text-brand-text px-3 py-2 rounded-lg text-sm font-medium transition-colors">
               <MdQrCodeScanner className="w-5 h-5 text-primary" />
               <span className="hidden sm:inline">Scan</span>
             </button>
@@ -388,7 +388,7 @@ export default function AdminInventory() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div className="bg-brand-surface rounded-card border border-brand-border overflow-hidden">
           {invFirstLoad ? (
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : (
@@ -399,7 +399,7 @@ export default function AdminInventory() {
                 </div>
               )}
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-brand-border">
+                <thead className="bg-brand-bg border-b border-brand-border">
                   <tr>
                     {['Model', 'Barcode / IMEI', 'Status', 'Holder', 'Added', ''].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
@@ -408,7 +408,7 @@ export default function AdminInventory() {
                 </thead>
                 <tbody className="divide-y divide-brand-border">
                   {invPhones.map((phone) => (
-                    <tr key={phone.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={phone.id} className="hover:bg-brand-bg transition-colors">
                       <td className="px-5 py-4 font-medium text-brand-text">{phone.model}</td>
                       <td className="px-5 py-4 font-mono text-xs text-brand-muted">
                         {phone.imei ?? phone.barcode ?? <span className="text-gray-300">—</span>}
@@ -464,7 +464,7 @@ export default function AdminInventory() {
       {editingPhone && (
         <Modal isOpen onClose={() => setEditingPhone(null)} title="Edit Phone">
           <div className="space-y-4">
-            <div className="bg-gray-50 border border-brand-border rounded-lg p-3">
+            <div className="bg-brand-bg border border-brand-border rounded-lg p-3">
               <p className="text-xs text-brand-muted">Current model</p>
               <p className="font-semibold text-brand-text text-sm">{editingPhone.model}</p>
               {(editingPhone.imei ?? editingPhone.barcode) && (
@@ -478,7 +478,7 @@ export default function AdminInventory() {
               <select
                 value={editModel}
                 onChange={(e) => setEditModel(e.target.value)}
-                className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
               >
                 <option value="">— Pick from list —</option>
                 {PHONE_MODELS.map((m) => (
@@ -519,11 +519,11 @@ export default function AdminInventory() {
       <Modal isOpen={showAddModal} onClose={resetModal} title="Add Phone(s) to Inventory">
         <div className="space-y-4">
           {/* Mode tabs */}
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 bg-brand-border/60 rounded-lg p-1">
             {modeTabs.map((t) => (
               <button key={t.key} onClick={() => setMode(t.key)}
                 className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  mode === t.key ? 'bg-white text-brand-text shadow-sm' : 'text-brand-muted hover:text-brand-text'
+                  mode === t.key ? 'bg-brand-surface text-brand-text shadow-sm' : 'text-brand-muted hover:text-brand-text'
                 }`}>
                 {t.key === 'scan' && <MdQrCodeScanner className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />}
                 {t.label}
@@ -587,7 +587,7 @@ export default function AdminInventory() {
                   <p className="text-xs text-primary/70 mt-0.5">Columns: Model, Serial Number, Barcode, IMEI</p>
                 </div>
                 <button onClick={downloadTemplate}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-white border border-primary/30 hover:bg-primary hover:text-white px-3 py-2 rounded-lg transition-colors">
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-brand-surface border border-primary/30 hover:bg-primary hover:text-white px-3 py-2 rounded-lg transition-colors">
                   <MdDownload className="w-4 h-4" /> Template
                 </button>
               </div>
@@ -616,7 +616,7 @@ export default function AdminInventory() {
               {scanStep === 'scanning' ? (
                 <>
                   {/* Hardware / Camera sub-tabs */}
-                  <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+                  <div className="flex gap-1 bg-brand-border/60 rounded-xl p-1">
                     <button className={scanCamTabClass('hardware')} onClick={() => setScanCamTab('hardware')}>
                       <MdWifi className="w-4 h-4" /> Hardware
                     </button>
@@ -731,7 +731,7 @@ export default function AdminInventory() {
                       <select
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                        className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-brand-surface"
                       >
                         <option value="">— Pick from list —</option>
                         {PHONE_MODELS.map((m) => (

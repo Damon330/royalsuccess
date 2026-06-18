@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
 import { useProfiles } from '../../hooks/useProfiles'
@@ -106,26 +106,26 @@ export default function AdminReturns() {
 
         {/* DB error */}
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1 space-y-1">
               {missingTable ? (
                 <>
-                  <p className="text-sm font-semibold text-amber-800">Returns table not found in database</p>
-                  <p className="text-xs text-amber-700">
+                  <p className="text-sm font-semibold text-brand-text">Returns table not found in database</p>
+                  <p className="text-xs text-warning">
                     Go to <strong>supabase.com</strong> → your project → <strong>SQL Editor</strong> → New query →
                     paste the contents of <code className="bg-amber-100 px-1 rounded">supabase/fix-missing-tables.sql</code> → Run.
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-                  <p className="text-xs text-amber-700">Go to <strong>supabase.com</strong> → resume your project, then refresh.</p>
+                  <p className="text-sm font-semibold text-brand-text">Database connection failed</p>
+                  <p className="text-xs text-warning">Go to <strong>supabase.com</strong> → resume your project, then refresh.</p>
                 </>
               )}
             </div>
             <button onClick={refetch}
-              className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg flex-shrink-0">
+              className="flex items-center gap-1 text-xs text-warning bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg flex-shrink-0">
               <MdRefresh className="w-4 h-4" /> Retry
             </button>
           </div>
@@ -176,13 +176,13 @@ export default function AdminReturns() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div className="bg-brand-surface rounded-card border border-brand-border overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-16"><Spinner size="lg" /></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-brand-border">
+                <thead className="bg-brand-bg border-b border-brand-border">
                   <tr>
                     {['Phone', 'Returned By', 'Reason', 'Status', 'Date', 'Actions'].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
@@ -198,7 +198,7 @@ export default function AdminReturns() {
                     const badgeVariant = STATUS_BADGE[statusVal] ?? 'gray'
 
                     return (
-                      <tr key={ret.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={ret.id} className="hover:bg-brand-bg transition-colors">
                         <td className="px-5 py-4">
                           <p className="font-medium text-brand-text">{safeStr(phone?.model)}</p>
                           <p className="text-xs font-mono text-brand-muted">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Button from '../../shared/Button'
 import Spinner from '../../shared/Spinner'
 import { useAuth } from '../../../hooks/useAuth'
@@ -25,7 +25,7 @@ function ProgressBar({ value, max, color = 'bg-primary' }: {
 }) {
   const pct = max === 0 ? 0 : Math.min(100, (value / max) * 100)
   return (
-    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+    <div className="h-1.5 bg-brand-border rounded-full overflow-hidden">
       <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
     </div>
   )
@@ -163,7 +163,7 @@ export default function PayrollGenerate({ onPreview, onGenerate }: Props) {
               { label: 'Performance Bonus',  value: formatNaira(totalBonus),     border: 'border-l-orange-400',  val: 'text-orange-600' },
               { label: 'Targets Met',        value: `${targetMetCount} / ${entries.length}`, border: 'border-l-green-500', val: 'text-green-700' },
             ].map(({ label, value, border, val }) => (
-              <div key={label} className={`bg-white rounded-xl border border-brand-border border-l-4 ${border} p-4`}>
+              <div key={label} className={`bg-brand-surface rounded-card border border-brand-border border-l-4 ${border} p-4`}>
                 <p className="text-xs text-brand-muted uppercase tracking-wide font-semibold">{label}</p>
                 <p className={`text-xl font-extrabold ${val} mt-1 tabular-nums`}>{value}</p>
               </div>
@@ -180,7 +180,7 @@ export default function PayrollGenerate({ onPreview, onGenerate }: Props) {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-brand-border">
+                <thead className="bg-brand-bg border-b border-brand-border">
                   <tr>
                     {['Employee', 'Role', 'Sales', 'Base', 'Commission', 'Bonus', 'Total', 'Target'].map((h) => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide whitespace-nowrap">
@@ -194,7 +194,7 @@ export default function PayrollGenerate({ onPreview, onGenerate }: Props) {
                     .slice()
                     .sort((a, b) => b.total_earnings - a.total_earnings)
                     .map((entry) => (
-                      <tr key={entry.employee_id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={entry.employee_id} className="hover:bg-brand-bg transition-colors">
                         <td className="px-4 py-3 font-medium text-brand-text whitespace-nowrap">
                           {entry.employee_name}
                         </td>

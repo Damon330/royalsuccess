@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Header from '../shared/Header'
 import Button from '../shared/Button'
 import Badge from '../shared/Badge'
@@ -73,21 +73,21 @@ export default function AdminAssignPhones() {
       <div className="p-6 space-y-5">
 
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 space-y-2">
             <div className="flex items-start gap-3">
-              <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-800">Could not load data</p>
+                <p className="text-sm font-semibold text-brand-text">Could not load data</p>
                 {phonesErrMsg && (
-                  <p className="text-xs font-mono text-amber-700 mt-0.5 break-all">Phones: {phonesErrMsg}</p>
+                  <p className="text-xs font-mono text-warning mt-0.5 break-all">Phones: {phonesErrMsg}</p>
                 )}
                 {profilesErrMsg && (
-                  <p className="text-xs font-mono text-amber-700 mt-0.5 break-all">Profiles: {profilesErrMsg}</p>
+                  <p className="text-xs font-mono text-warning mt-0.5 break-all">Profiles: {profilesErrMsg}</p>
                 )}
               </div>
               <button
                 onClick={() => { refetchPhones(); refetchProfiles() }}
-                className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                className="flex items-center gap-1 text-xs font-medium text-warning bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
               >
                 <MdRefresh className="w-4 h-4" /> Retry
               </button>
@@ -96,7 +96,7 @@ export default function AdminAssignPhones() {
         )}
 
         {/* Step 1: Recipient */}
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm p-5 space-y-3">
+        <div className="bg-brand-surface rounded-card border border-brand-border p-5 space-y-3">
           <h2 className="text-sm font-semibold text-brand-text">1. Select Recipient</h2>
 
           {/* Search */}
@@ -148,7 +148,7 @@ export default function AdminAssignPhones() {
         </div>
 
         {/* Step 2: Phones */}
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div className="bg-brand-surface rounded-card border border-brand-border overflow-hidden">
           <div className="px-5 py-4 border-b border-brand-border flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-brand-text">
               2. Select Phones
@@ -180,7 +180,7 @@ export default function AdminAssignPhones() {
                 const checked = selectedPhones.includes(phone.id)
                 return (
                   <label key={phone.id}
-                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors ${checked ? 'bg-primary-pale' : 'hover:bg-gray-50'}`}>
+                    className={`flex items-center gap-4 px-5 py-4 cursor-pointer transition-colors ${checked ? 'bg-primary-pale' : 'hover:bg-brand-bg'}`}>
                     <input type="checkbox" checked={checked} onChange={() => togglePhone(phone.id)} className="sr-only" />
                     {checked
                       ? <MdCheckBox className="w-5 h-5 text-primary flex-shrink-0" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
@@ -118,12 +118,12 @@ function RingMetric({ percent, color, label, value, total }: {
 
 async function fetchDashboard(): Promise<DashboardData> {
   const [statsRes, teamRes, alertsRes] = await Promise.all([
-    withTimeout(supabase.rpc('admin_dashboard_stats'), 30_000),
-    withTimeout(supabase.rpc('admin_team_overview'), 30_000),
+    withTimeout(supabase.rpc('admin_dashboard_stats'), 45_000),
+    withTimeout(supabase.rpc('admin_team_overview'), 45_000),
     withTimeout(supabase.rpc('admin_stale_alerts', {
       p_agent_days:    AGENT_STALE_DAYS,
       p_teamlead_days: TEAMLEAD_STALE_DAYS,
-    }), 30_000),
+    }), 45_000),
   ])
 
   if (statsRes.error)  throw new Error(statsRes.error.message)
@@ -165,19 +165,27 @@ export default function AdminDashboard() {
   const {
     data,
     isLoading,
-    isError:    dbError,
+    isError:      dbError,
     isFetching,
-    error:      dbErrorObj,
-    refetch:    refetchAll,
+    failureCount,
+    error:        dbErrorObj,
+    refetch:      refetchAll,
   } = useQuery({
-    queryKey:  ['dashboard'],
-    queryFn:   fetchDashboard,
-    staleTime: DASHBOARD_STALE_MS,
+    queryKey:   ['dashboard'],
+    queryFn:    fetchDashboard,
+    staleTime:  DASHBOARD_STALE_MS,
+    // 3 total attempts (1 initial + 2 retries) with 5 s → 10 s backoff.
+    // Covers the Supabase free-tier cold-start window (~20-30 s): first attempt
+    // times out while DB wakes, second attempt succeeds in < 1 s.
+    retry:      2,
+    retryDelay: (attempt) => Math.min(5_000 * (attempt + 1), 10_000),
   })
 
-  // Track how long the initial load is taking so we can show a "waking up" hint
+  // Track how long the current fetch (initial or retry) is taking
+  const isConnecting = isLoading || (isFetching && failureCount > 0)
+
   useEffect(() => {
-    if (isLoading) {
+    if (isConnecting) {
       setLoadingMs(0)
       loadTimerRef.current = setInterval(() => setLoadingMs(ms => ms + 1000), 1000)
     } else {
@@ -185,7 +193,7 @@ export default function AdminDashboard() {
       setLoadingMs(0)
     }
     return () => clearInterval(loadTimerRef.current)
-  }, [isLoading])
+  }, [isConnecting])
 
   useEffect(() => {
     if (dbErrorObj) {
@@ -229,18 +237,30 @@ export default function AdminDashboard() {
 
       <div className="p-4 sm:p-6 space-y-5">
 
-        {/* ── Cold-start / slow-load indicator ────────────────────────── */}
-        {isLoading && loadingMs >= 5000 && (
+        {/* ── Cold-start / reconnecting indicator ─────────────────────── */}
+        {isConnecting && loadingMs >= 4000 && (
           <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30 rounded-card p-4 flex items-center gap-3">
             <Spinner size="sm" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                Waking up the database… ({Math.round(loadingMs / 1000)}s)
-              </p>
-              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
-                Supabase free-tier databases sleep after inactivity and take up to 30 seconds to start.
-                Please wait — data will load automatically.
-              </p>
+              {failureCount > 0 ? (
+                <>
+                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                    Reconnecting… (attempt {failureCount + 1} of 3)
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                    Database took too long to respond — retrying automatically. Please wait.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                    Connecting to database… ({Math.round(loadingMs / 1000)}s)
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+                    Supabase may be waking up after inactivity — this takes up to 30 s once, then is fast.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -248,15 +268,15 @@ export default function AdminDashboard() {
         {/* ── DB error banner ──────────────────────────────────────────── */}
         {dbError && (
           <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-card p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              <p className="text-sm font-bold text-brand-text dark:text-amber-300">
                 Failed to load dashboard data
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 font-mono">
+              <p className="text-xs text-warning dark:text-amber-400 mt-0.5 font-mono">
                 {(dbErrorObj as Error)?.message ?? 'Unknown error'}
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+              <p className="text-xs text-warning dark:text-amber-400 mt-1">
                 {(dbErrorObj as Error)?.message?.includes('timed out')
                   ? 'Database took too long to respond — your Supabase project may have been sleeping. Click Retry; it should load on the second attempt.'
                   : 'If this says "permission denied", run supabase/v2-full-migration.sql in the Supabase SQL Editor, then Retry.'}
@@ -265,7 +285,7 @@ export default function AdminDashboard() {
             </div>
             <button
               onClick={() => refetchAll()}
-              className="flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-800/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 px-3 py-1.5 rounded-full transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs font-semibold text-warning dark:text-amber-300 bg-amber-100 dark:bg-amber-800/30 hover:bg-amber-200 dark:hover:bg-amber-800/50 px-3 py-1.5 rounded-full transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Retry
             </button>
@@ -316,7 +336,7 @@ export default function AdminDashboard() {
             <StatCard label="Sold"     value={stats.sold}     sub={pct(stats.sold)}
               icon={<MdCheckCircle   className="w-5 h-5 text-positive"    />} iconBg="bg-positive/10 dark:bg-positive/15"     accentColor="bg-positive" />
             <StatCard label="Returned" value={stats.returned} sub={pct(stats.returned)}
-              icon={<MdUndo          className="w-5 h-5 text-amber-500"   />} iconBg="bg-amber-50 dark:bg-amber-900/20"       accentColor="bg-amber-400" />
+              icon={<MdUndo          className="w-5 h-5 text-warning"   />} iconBg="bg-amber-50 dark:bg-amber-900/20"       accentColor="bg-amber-400" />
             <StatCard label="Damaged"  value={stats.damaged}  sub={pct(stats.damaged)}
               icon={<MdBuildCircle   className="w-5 h-5 text-negative"    />} iconBg="bg-negative/10 dark:bg-negative/15"     accentColor="bg-negative" />
           </div>
@@ -334,7 +354,7 @@ export default function AdminDashboard() {
               className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg transition-colors"
             >
               <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-inner flex items-center justify-center flex-shrink-0">
-                <MdNotifications className="w-4 h-4 text-amber-500" />
+                <MdNotifications className="w-4 h-4 text-warning" />
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm font-bold text-brand-text">Stale Device Alerts</p>
@@ -472,7 +492,7 @@ export default function AdminDashboard() {
                             <div>
                               <span className="font-semibold text-brand-text">{m.full_name}</span>
                               {m.stale_phone_count > 0 && (
-                                <span className="ml-2 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full">
+                                <span className="ml-2 text-[10px] font-bold bg-amber-100 dark:bg-amber-900/20 text-warning dark:text-amber-400 px-1.5 py-0.5 rounded-full">
                                   {m.stale_phone_count} stale
                                 </span>
                               )}

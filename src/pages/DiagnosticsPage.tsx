@@ -6,7 +6,7 @@ import Header from '../components/shared/Header'
 import Spinner from '../components/shared/Spinner'
 import {
   MdCheckCircle, MdError, MdWarning, MdHelpOutline,
-  MdRefresh, MdContentCopy, MdDelete, MdExpandMore, MdExpandLess,
+  MdRefresh, MdContentCopy, MdDelete, MdExpandMore, MdExpandLess, MdLogout,
 } from 'react-icons/md'
 import toast from 'react-hot-toast'
 
@@ -123,6 +123,7 @@ function makeChecks(): Check[] {
 async function executeChecks(
   _checks: Check[],
   update: (id: string, patch: Partial<Check>) => void,
+  onSessionStuck?: () => void,
 ) {
   // ── Environment (synchronous) ──────────────────────────────────────
   update('env_url', {
@@ -148,43 +149,74 @@ async function executeChecks(
   })
 
   // ── Auth session ──────────────────────────────────────────────────
+  // getSession() can hang forever when the browser has a stale JWT and the
+  // token-refresh network call freezes (browser-specific SSL/connection issue).
+  // We race it against an 8s deadline so the diagnostics page never locks up.
   update('auth_session', { status: 'running' })
   const tAuth = Date.now()
   let sessionEmail: string | null = null
+
+  type GetSessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
   try {
-    const { data: { session }, error } = await supabase.auth.getSession()
-    const lat = Date.now() - tAuth
-    if (error || !session) {
+    const raceResult = await Promise.race<GetSessionResult | 'TIMEOUT'>([
+      supabase.auth.getSession(),
+      new Promise<'TIMEOUT'>(resolve => setTimeout(() => resolve('TIMEOUT'), 8_000)),
+    ])
+
+    if (raceResult === 'TIMEOUT') {
+      onSessionStuck?.()
       update('auth_session', {
         status: 'error',
-        latencyMs: lat,
-        detail: error?.message ?? 'No active session — sign out and sign back in',
+        latencyMs: Date.now() - tAuth,
+        detail: [
+          'Timed out after 8s — browser is stuck in a token-refresh loop.',
+          '',
+          'Your stored JWT is expired. Supabase is trying to refresh it via a network',
+          'call that is hanging in this browser. This blocks ALL database operations.',
+          '',
+          '→ Click "Force Sign Out" above. It clears the token from localStorage',
+          '  without making any network call, then reloads the page.',
+          '',
+          'Or run in the browser console:',
+          'Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k));location.reload();',
+        ].join('\n'),
       })
-      update('auth_match', { status: 'warn', detail: 'Cannot check — no session' })
+      update('auth_match', { status: 'warn', detail: 'Cannot check — session refresh timed out' })
     } else {
-      const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
-      sessionEmail = session.user.email?.toLowerCase() ?? null
-      update('auth_session', {
-        status: expiresIn > 60 ? 'ok' : expiresIn > 0 ? 'warn' : 'error',
-        latencyMs: lat,
-        detail: expiresIn > 0
-          ? `${session.user.email}\nExpires in: ${Math.floor(expiresIn / 60)}m ${expiresIn % 60}s\nUser ID: ${session.user.id}`
-          : `TOKEN EXPIRED ${Math.abs(expiresIn)}s ago — sign out and sign back in`,
-        raw: {
-          email:      session.user.email,
-          user_id:    session.user.id,
-          expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-        },
-      })
+      const { data: { session }, error } = raceResult
+      const lat = Date.now() - tAuth
+      if (error || !session) {
+        update('auth_session', {
+          status: 'error',
+          latencyMs: lat,
+          detail: error?.message ?? 'No active session — sign out and sign back in',
+        })
+        update('auth_match', { status: 'warn', detail: 'Cannot check — no session' })
+      } else {
+        const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
+        sessionEmail = session.user.email?.toLowerCase() ?? null
+        update('auth_session', {
+          status: expiresIn > 60 ? 'ok' : expiresIn > 0 ? 'warn' : 'error',
+          latencyMs: lat,
+          detail: expiresIn > 0
+            ? `${session.user.email}\nExpires in: ${Math.floor(expiresIn / 60)}m ${expiresIn % 60}s\nUser ID: ${session.user.id}`
+            : `TOKEN EXPIRED ${Math.abs(expiresIn)}s ago — sign out and sign back in`,
+          raw: {
+            email:      session.user.email,
+            user_id:    session.user.id,
+            expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+          },
+        })
 
-      const adminExpected = (adminEmailEnv || 'patrickwlax@gmail.com').toLowerCase()
-      const matches       = sessionEmail === adminExpected
-      update('auth_match', {
-        status: matches ? 'ok' : 'error',
-        detail: matches
-          ? `"${session.user.email}" matches admin config ✓`
-          : `MISMATCH — session email "${session.user.email}" ≠ admin config "${adminEmailEnv || 'patrickwlax@gmail.com'}"\n→ The is_admin() DB function will return false → all admin RPCs will fail`,
-      })
+        const adminExpected = (adminEmailEnv || 'patrickwlax@gmail.com').toLowerCase()
+        const matches       = sessionEmail === adminExpected
+        update('auth_match', {
+          status: matches ? 'ok' : 'error',
+          detail: matches
+            ? `"${session.user.email}" matches admin config ✓`
+            : `MISMATCH — session email "${session.user.email}" ≠ admin config "${adminEmailEnv || 'patrickwlax@gmail.com'}"\n→ The is_admin() DB function will return false → all admin RPCs will fail`,
+        })
+      }
     }
   } catch (err) {
     update('auth_session', { status: 'error', latencyMs: Date.now() - tAuth, detail: String(err) })
@@ -230,7 +262,7 @@ async function executeChecks(
   await Promise.all(rpcDefs.map(async (r) => {
     const t = Date.now()
     try {
-      const { data, error } = await withTimeout(r.fn(), 15_000)
+      const { data, error } = await withTimeout(r.fn(), 30_000)
       const lat = Date.now() - t
       if (error) {
         update(r.id, {
@@ -342,8 +374,9 @@ function buildReport(checks: Check[]): string {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function DiagnosticsPage() {
-  const [checks,  setChecks]  = useState<Check[]>(makeChecks)
-  const [running, setRunning] = useState(false)
+  const [checks,       setChecks]       = useState<Check[]>(makeChecks)
+  const [running,      setRunning]      = useState(false)
+  const [sessionStuck, setSessionStuck] = useState(false)
   const errorLog = useErrorLog()
 
   function applyUpdate(id: string, patch: Partial<Check>) {
@@ -354,12 +387,29 @@ export default function DiagnosticsPage() {
     const fresh = makeChecks()
     setChecks(fresh)
     setRunning(true)
+    setSessionStuck(false)
     try {
-      await executeChecks(fresh, applyUpdate)
+      await executeChecks(fresh, applyUpdate, () => setSessionStuck(true))
     } finally {
       setRunning(false)
     }
   }, [])
+
+  async function handleForceSignOut() {
+    try {
+      // scope: 'local' clears localStorage only — makes NO network call.
+      // Safe even when the token-refresh loop is frozen.
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3_000)),
+      ])
+    } catch {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('sb-'))
+        .forEach(k => localStorage.removeItem(k))
+    }
+    window.location.reload()
+  }
 
   // Auto-run on mount
   useEffect(() => { run() }, [run])
@@ -403,6 +453,25 @@ export default function DiagnosticsPage() {
             </button>
           </div>
         </div>
+
+        {/* Session-stuck banner */}
+        {sessionStuck && (
+          <div className="bg-negative/10 border border-negative/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-negative">Session stuck — stale JWT detected</p>
+              <p className="text-xs text-brand-muted mt-1 leading-relaxed">
+                Your browser has an expired auth token that is blocking all database calls.
+                <strong className="text-brand-text"> Force Sign Out</strong> clears it from localStorage without any network call, then reloads the page.
+              </p>
+            </div>
+            <button
+              onClick={handleForceSignOut}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-negative hover:bg-red-700 transition-colors flex-shrink-0 whitespace-nowrap"
+            >
+              <MdLogout className="w-4 h-4" /> Force Sign Out
+            </button>
+          </div>
+        )}
 
         {/* Check groups */}
         {Object.entries(groups).map(([groupName, items]) => (

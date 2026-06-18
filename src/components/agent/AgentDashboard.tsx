@@ -66,7 +66,7 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
       <div className="space-y-4">
 
         {/* Phone info */}
-        <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 border border-brand-border">
+        <div className="bg-brand-bg rounded-card p-4 flex items-center gap-3 border border-brand-border">
           <div className="bg-primary-pale rounded-xl p-2.5 flex-shrink-0">
             <MdPhoneAndroid className="w-5 h-5 text-primary" />
           </div>
@@ -87,7 +87,7 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-sm font-semibold transition-all ${
                   target === 'team_lead'
                     ? 'border-primary bg-primary-pale text-primary'
-                    : 'border-brand-border text-brand-muted hover:border-primary/40 hover:bg-gray-50'
+                    : 'border-brand-border text-brand-muted hover:border-primary/40 hover:bg-brand-bg'
                 }`}
               >
                 <MdGroup className="w-6 h-6" />
@@ -101,7 +101,7 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 text-sm font-semibold transition-all ${
                   target === 'store'
                     ? 'border-primary bg-primary-pale text-primary'
-                    : 'border-brand-border text-brand-muted hover:border-primary/40 hover:bg-gray-50'
+                    : 'border-brand-border text-brand-muted hover:border-primary/40 hover:bg-brand-bg'
                 }`}
               >
                 <MdStorefront className="w-6 h-6" />
@@ -190,7 +190,7 @@ function PhoneCard({ phone, hasTeamLead, onSell, onReturn }: {
     : 'border-l-primary'
 
   const iconBg = isSold
-    ? 'bg-gray-50'
+    ? 'bg-brand-bg'
     : isReturned
     ? 'bg-amber-50'
     : stale
@@ -496,7 +496,7 @@ export default function AgentDashboard() {
 
       {saleLoading && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-6 text-center space-y-3">
+          <div className="bg-brand-surface rounded-card p-6 text-center space-y-3">
             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm font-medium text-brand-text">Generating receipt…</p>
           </div>

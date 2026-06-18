@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import Header from '../../shared/Header'
 import Spinner from '../../shared/Spinner'
 import PayrollGenerate from './PayrollGenerate'
@@ -98,17 +98,17 @@ export default function PayrollPage() {
 
         {/* DB error banner */}
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Database connection failed</p>
-              <p className="text-xs text-amber-700 mt-0.5">
+              <p className="text-sm font-semibold text-brand-text">Database connection failed</p>
+              <p className="text-xs text-warning mt-0.5">
                 Make sure you've run <code className="bg-amber-100 px-1 rounded">supabase/payroll-schema.sql</code> in the Supabase SQL Editor first.
               </p>
             </div>
             <button
               onClick={refetch}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs font-medium text-warning bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Retry
             </button>
@@ -118,7 +118,7 @@ export default function PayrollPage() {
         {/* Overview cards */}
         {!loading && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-brand-border border-l-4 border-l-primary p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-brand-surface rounded-card border border-brand-border border-l-4 border-l-primary p-4 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Last Payout</p>
               <p className="text-2xl font-extrabold text-primary mt-1.5 tabular-nums">
                 {lastRun ? formatNaira(lastRun.total_payout) : '—'}
@@ -132,7 +132,7 @@ export default function PayrollPage() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl border border-brand-border border-l-4 border-l-blue-400 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-brand-surface rounded-card border border-brand-border border-l-4 border-l-blue-400 p-4 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Employees</p>
               <p className="text-2xl font-extrabold text-blue-700 mt-1.5 tabular-nums">
                 {activeAgents}
@@ -142,7 +142,7 @@ export default function PayrollPage() {
               </p>
             </div>
 
-            <div className="bg-white rounded-xl border border-brand-border border-l-4 border-l-green-500 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-brand-surface rounded-card border border-brand-border border-l-4 border-l-green-500 p-4 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Runs Paid</p>
               <p className="text-2xl font-extrabold text-green-700 mt-1.5 tabular-nums">
                 {totalPaidRuns}
@@ -152,7 +152,7 @@ export default function PayrollPage() {
               )}
             </div>
 
-            <div className="bg-white rounded-xl border border-brand-border border-l-4 border-l-orange-400 p-4 shadow-sm hover:shadow-md transition-shadow">
+            <div className="bg-brand-surface rounded-card border border-brand-border border-l-4 border-l-orange-400 p-4 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Active Targets</p>
               <p className="text-2xl font-extrabold text-orange-600 mt-1.5 tabular-nums">
                 {activeTargets}
@@ -183,7 +183,7 @@ export default function PayrollPage() {
                   cta: 'Go to Targets',
                 },
               ].map(({ done, text, action, cta }) => (
-                <div key={text} className={`flex items-center gap-3 rounded-xl p-3 ${done ? 'bg-green-50' : 'bg-gray-50'}`}>
+                <div key={text} className={`flex items-center gap-3 rounded-xl p-3 ${done ? 'bg-positive/10' : 'bg-brand-bg'}`}>
                   {done
                     ? <MdCheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
                     : <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
@@ -220,7 +220,7 @@ export default function PayrollPage() {
                   className={`flex items-center gap-2 px-5 py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-all duration-150 ${
                     tab === id
                       ? 'border-primary text-primary bg-primary-pale/50'
-                      : 'border-transparent text-brand-muted hover:text-brand-text hover:bg-gray-50'
+                      : 'border-transparent text-brand-muted hover:text-brand-text hover:bg-brand-bg'
                   }`}
                 >
                   <Icon className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { format, isToday, isYesterday } from 'date-fns'
+import { format, isToday, isYesterday, parseISO } from 'date-fns'
 import type { ActivityLogEntry, ActivityActionType, ActivityFilters } from '../../hooks/useActivityLog'
 import type { Profile } from '../../types'
 import Spinner from './Spinner'
@@ -17,22 +17,22 @@ const ACTION_CONFIG: Record<ActivityActionType, {
   bg:    string
   label: string
 }> = {
-  PHONE_ASSIGNED:    { icon: TbPhoneOutgoing, dot: 'bg-amber-400',  bg: 'bg-amber-50',  label: 'Phone Assigned'    },
-  PHONE_UNASSIGNED:  { icon: TbPhoneOff,      dot: 'bg-orange-400', bg: 'bg-orange-50', label: 'Phone Unassigned'  },
-  SALE_RECORDED:     { icon: TbShoppingCart,  dot: 'bg-green-500',  bg: 'bg-green-50',  label: 'Sale Recorded'     },
-  SALE_RETURNED:     { icon: TbArrowBackUp,   dot: 'bg-red-500',    bg: 'bg-red-50',    label: 'Sale Returned'     },
-  STOCK_ADDED:       { icon: TbPackageImport, dot: 'bg-blue-500',   bg: 'bg-blue-50',   label: 'Stock Added'       },
-  STOCK_ADJUSTED:    { icon: TbAdjustments,   dot: 'bg-blue-400',   bg: 'bg-blue-50',   label: 'Stock Adjusted'    },
+  PHONE_ASSIGNED:    { icon: TbPhoneOutgoing, dot: 'bg-amber-400',  bg: 'bg-amber-400/15',  label: 'Phone Assigned'    },
+  PHONE_UNASSIGNED:  { icon: TbPhoneOff,      dot: 'bg-orange-400', bg: 'bg-orange-400/15', label: 'Phone Unassigned'  },
+  SALE_RECORDED:     { icon: TbShoppingCart,  dot: 'bg-green-500',  bg: 'bg-green-500/15',  label: 'Sale Recorded'     },
+  SALE_RETURNED:     { icon: TbArrowBackUp,   dot: 'bg-red-500',    bg: 'bg-red-500/15',    label: 'Sale Returned'     },
+  STOCK_ADDED:       { icon: TbPackageImport, dot: 'bg-blue-500',   bg: 'bg-blue-500/15',   label: 'Stock Added'       },
+  STOCK_ADJUSTED:    { icon: TbAdjustments,   dot: 'bg-blue-400',   bg: 'bg-blue-400/15',   label: 'Stock Adjusted'    },
   USER_CREATED:      { icon: TbUserPlus,      dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'User Created'   },
-  USER_DEACTIVATED:  { icon: TbUserOff,       dot: 'bg-gray-400',   bg: 'bg-gray-50 dark:bg-gray-800/20',   label: 'User Deactivated'  },
+  USER_DEACTIVATED:  { icon: TbUserOff,       dot: 'bg-gray-400',   bg: 'bg-brand-bg',   label: 'User Deactivated'  },
   RECEIPT_GENERATED: { icon: TbReceipt,       dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'Receipt Generated' },
-  SCAN_EVENT:        { icon: TbScan,          dot: 'bg-gray-400',   bg: 'bg-gray-50',   label: 'Scan Event'        },
+  SCAN_EVENT:        { icon: TbScan,          dot: 'bg-gray-400',   bg: 'bg-brand-bg',   label: 'Scan Event'        },
 }
 
 const ROLE_BADGE: Record<string, string> = {
   admin:     'bg-primary text-white',
-  team_lead: 'bg-amber-100 text-amber-800',
-  agent:     'bg-blue-100 text-blue-800',
+  team_lead: 'bg-amber-400/20 text-amber-700 dark:text-amber-400',
+  agent:     'bg-blue-500/15 text-blue-700 dark:text-blue-400',
 }
 
 function roleLabel(role: string): string {
@@ -49,6 +49,18 @@ function formatTime(iso: string): { relative: string; absolute: string } {
   return { relative: format(d, 'dd MMM, h:mm a'), absolute }
 }
 
+// ── Day divider label ─────────────────────────────────────────
+function dayKey(iso: string): string {
+  return iso.slice(0, 10)   // YYYY-MM-DD
+}
+
+function dayDividerLabel(dateStr: string): string {
+  const d = parseISO(dateStr)
+  if (isToday(d))     return 'Today'
+  if (isYesterday(d)) return 'Yesterday'
+  return format(d, 'EEEE, d MMMM yyyy')
+}
+
 // ── Human-readable headline + detail per action type ──────────
 interface EntrySummary {
   headline: string
@@ -60,7 +72,6 @@ function summarise(entry: ActivityLogEntry): EntrySummary {
   const m     = (entry.meta ?? {}) as Record<string, unknown>
   const label = entry.entity_label ?? ''
 
-  // Helper to pull model from label or meta
   const modelFromLabel = label.split(' /')[0].trim()
   const model = (m.model as string | undefined) ?? modelFromLabel
 
@@ -149,15 +160,18 @@ function summarise(entry: ActivityLogEntry): EntrySummary {
 
 // ── Filters bar ───────────────────────────────────────────────
 interface FiltersBarProps {
-  filters:         ActivityFilters
-  onUpdate:        (patch: Partial<ActivityFilters>) => void
-  agents?:         Profile[]
-  showAgentFilter: boolean
+  filters:          ActivityFilters
+  onUpdate:         (patch: Partial<ActivityFilters>) => void
+  agents?:          Profile[]
+  showAgentFilter:  boolean
+  hideDateFilters?: boolean
 }
 
 const ALL_ACTION_TYPES = Object.keys(ACTION_CONFIG) as ActivityActionType[]
 
-export function ActivityFiltersBar({ filters, onUpdate, agents = [], showAgentFilter }: FiltersBarProps) {
+export function ActivityFiltersBar({
+  filters, onUpdate, agents = [], showAgentFilter, hideDateFilters = false,
+}: FiltersBarProps) {
   function toggleAction(a: ActivityActionType) {
     const next = filters.actionTypes.includes(a)
       ? filters.actionTypes.filter((x) => x !== a)
@@ -166,42 +180,48 @@ export function ActivityFiltersBar({ filters, onUpdate, agents = [], showAgentFi
   }
 
   return (
-    <div className="bg-white border border-brand-border rounded-xl p-4 space-y-3">
-      <div className="flex flex-wrap gap-3">
-        <div>
-          <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">From</label>
-          <input
-            type="date"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => onUpdate({ dateFrom: e.target.value })}
-            className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+    <div className="bg-brand-surface border border-brand-border rounded-card p-4 space-y-3">
+      {(!hideDateFilters || showAgentFilter) && (
+        <div className="flex flex-wrap gap-3">
+          {!hideDateFilters && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">From</label>
+                <input
+                  type="date"
+                  value={filters.dateFrom ?? ''}
+                  onChange={(e) => onUpdate({ dateFrom: e.target.value })}
+                  className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">To</label>
+                <input
+                  type="date"
+                  value={filters.dateTo ?? ''}
+                  onChange={(e) => onUpdate({ dateTo: e.target.value })}
+                  className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </>
+          )}
+          {showAgentFilter && agents.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">Agent / TL</label>
+              <select
+                value={filters.agentId ?? ''}
+                onChange={(e) => onUpdate({ agentId: e.target.value })}
+                className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">All</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.full_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">To</label>
-          <input
-            type="date"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => onUpdate({ dateTo: e.target.value })}
-            className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        {showAgentFilter && agents.length > 0 && (
-          <div>
-            <label className="block text-xs font-semibold text-brand-muted uppercase tracking-wide mb-1">Agent / TL</label>
-            <select
-              value={filters.agentId ?? ''}
-              onChange={(e) => onUpdate({ agentId: e.target.value })}
-              className="border border-brand-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">All</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.full_name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      )}
 
       <div>
         <p className="text-xs font-semibold text-brand-muted uppercase tracking-wide mb-2">Filter by event</p>
@@ -216,7 +236,7 @@ export function ActivityFiltersBar({ filters, onUpdate, agents = [], showAgentFi
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                   active
                     ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-brand-muted border-brand-border hover:border-primary hover:text-primary'
+                    : 'bg-brand-surface text-brand-muted border-brand-border hover:border-primary hover:text-primary'
                 }`}
               >
                 <cfg.icon className="w-3.5 h-3.5" />
@@ -240,17 +260,20 @@ export function ActivityFiltersBar({ filters, onUpdate, agents = [], showAgentFi
 
 // ── Feed ──────────────────────────────────────────────────────
 interface FeedProps {
-  entries:     ActivityLogEntry[]
-  loading:     boolean
-  loadingMore: boolean
-  hasMore:     boolean
-  dbError:     boolean
-  onLoadMore:  () => void
-  onRefetch:   () => void
+  entries:      ActivityLogEntry[]
+  loading:      boolean
+  loadingMore:  boolean
+  hasMore:      boolean
+  dbError:      boolean
+  onLoadMore:   () => void
+  onRefetch:    () => void
+  selectedDate?: string   // YYYY-MM-DD — used for empty-state copy
+  dayLabel?:     string   // e.g. "Today" / "Yesterday" / "Mon, 15 Jan"
 }
 
 export default function ActivityFeed({
   entries, loading, loadingMore, hasMore, dbError, onLoadMore, onRefetch,
+  selectedDate, dayLabel,
 }: FeedProps) {
   const sentinelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -285,11 +308,21 @@ export default function ActivityFeed({
     return (
       <div className="text-center py-16 text-brand-muted">
         <TbScan className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-        <p className="text-sm font-medium">No activity yet.</p>
-        <p className="text-xs mt-1">Events will appear here as phones are added, assigned, and sold.</p>
+        <p className="text-sm font-medium">
+          {dayLabel ? `No activity on ${dayLabel}.` : 'No activity yet.'}
+        </p>
+        <p className="text-xs mt-1">
+          {selectedDate
+            ? 'Use the arrows above to navigate to another day.'
+            : 'Events will appear here as phones are added, assigned, and sold.'}
+        </p>
       </div>
     )
   }
+
+  // Group consecutive entries by calendar day so we can insert day dividers
+  // when the feed spans multiple days (e.g. load-more reaches yesterday).
+  let lastDayKey = ''
 
   return (
     <div className="relative">
@@ -304,56 +337,72 @@ export default function ActivityFeed({
           const sum    = summarise(entry)
           const isLast = idx === entries.length - 1
 
+          const entryDay   = dayKey(entry.created_at)
+          const showHeader = entryDay !== lastDayKey
+          if (showHeader) lastDayKey = entryDay
+
           return (
-            <div key={entry.id} className={`relative flex gap-4 ${isLast ? '' : 'pb-5'}`}>
-              {/* Timeline dot */}
-              <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 border-brand-border flex items-center justify-center">
-                <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
-              </div>
+            <div key={entry.id}>
+              {/* Day divider — only shown when entries cross a day boundary */}
+              {showHeader && (
+                <div className="relative flex items-center gap-3 py-3 pl-14">
+                  <span className="text-xs font-bold text-brand-muted uppercase tracking-wider">
+                    {dayDividerLabel(entryDay)}
+                  </span>
+                  <div className="flex-1 h-px bg-brand-border" />
+                </div>
+              )}
 
-              {/* Card */}
-              <div className="flex-1 min-w-0">
-                <div className={`rounded-xl border border-brand-border bg-white px-4 py-3 shadow-sm`}>
+              <div className={`relative flex gap-4 ${isLast ? '' : 'pb-5'}`}>
+                {/* Timeline dot */}
+                <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-brand-surface border-2 border-brand-border flex items-center justify-center">
+                  <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
+                </div>
 
-                  {/* Header row: icon + actor + role badge + time */}
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md ${cfg.bg} flex-shrink-0`}>
-                        <Icon className={`w-3.5 h-3.5`} style={{ color: 'inherit' }} />
-                      </span>
-                      <span className="text-sm font-semibold text-brand-text">
-                        {entry.actor_name}
-                      </span>
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${ROLE_BADGE[entry.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {roleLabel(entry.role)}
-                      </span>
+                {/* Card */}
+                <div className="flex-1 min-w-0">
+                  <div className="rounded-card border border-brand-border bg-brand-surface px-4 py-3">
+
+                    {/* Header row: icon + actor + role badge + time */}
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md ${cfg.bg} flex-shrink-0`}>
+                          <Icon className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-sm font-semibold text-brand-text">
+                          {entry.actor_name}
+                        </span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${ROLE_BADGE[entry.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {roleLabel(entry.role)}
+                        </span>
+                      </div>
+                      <time
+                        title={time.absolute}
+                        className="text-xs text-brand-muted whitespace-nowrap flex-shrink-0 mt-0.5 cursor-default"
+                      >
+                        {time.relative}
+                      </time>
                     </div>
-                    <time
-                      title={time.absolute}
-                      className="text-xs text-brand-muted whitespace-nowrap flex-shrink-0 mt-0.5 cursor-default"
-                    >
-                      {time.relative}
-                    </time>
+
+                    {/* Headline */}
+                    <p className="text-sm text-brand-text font-medium">
+                      {sum.headline}
+                    </p>
+
+                    {/* Detail line */}
+                    {sum.detail && (
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        {sum.detail}
+                      </p>
+                    )}
+
+                    {/* Identifier line */}
+                    {sum.id_line && (
+                      <p className="text-xs font-mono text-brand-muted mt-0.5">
+                        {sum.id_line}
+                      </p>
+                    )}
                   </div>
-
-                  {/* Headline */}
-                  <p className="text-sm text-brand-text font-medium">
-                    {sum.headline}
-                  </p>
-
-                  {/* Detail line (price, reason, models…) */}
-                  {sum.detail && (
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      {sum.detail}
-                    </p>
-                  )}
-
-                  {/* Identifier line (IMEI, SN, receipt#) */}
-                  {sum.id_line && (
-                    <p className="text-xs font-mono text-brand-muted mt-0.5">
-                      {sum.id_line}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -369,7 +418,7 @@ export default function ActivityFeed({
 
       {!hasMore && entries.length > 0 && (
         <p className="text-center text-xs text-brand-muted py-4">
-          All {entries.length} event{entries.length !== 1 ? 's' : ''} loaded.
+          {entries.length} event{entries.length !== 1 ? 's' : ''} on {dayLabel ?? 'this period'}.
         </p>
       )}
     </div>

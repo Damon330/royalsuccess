@@ -85,7 +85,7 @@ export default function TLAgents() {
                 {/* Agent header row */}
                 <button
                   onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
-                  className="w-full flex items-center justify-between px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-4 hover:bg-brand-bg active:bg-brand-border/30 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className="bg-primary rounded-full h-9 w-9 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">

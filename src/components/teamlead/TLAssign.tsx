@@ -150,7 +150,7 @@ export default function TLAssign() {
                         className={`w-full flex items-center gap-3 bg-white rounded-2xl border p-4 text-left transition-colors ${
                           selected
                             ? 'border-primary bg-primary-pale'
-                            : 'border-brand-border hover:border-gray-300 active:bg-gray-50'
+                            : 'border-brand-border hover:border-brand-border active:bg-brand-bg'
                         }`}
                       >
                         {selected

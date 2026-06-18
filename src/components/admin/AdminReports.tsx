@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import Header from '../shared/Header'
 import Badge from '../shared/Badge'
 import { supabase } from '../../lib/supabase'
@@ -64,31 +64,31 @@ export default function AdminReports() {
       <div className="p-6 space-y-5">
 
         {dbError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-            <MdWarning className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
+            <MdWarning className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800">Failed to load report data</p>
+              <p className="text-sm font-semibold text-brand-text">Failed to load report data</p>
               {dbErrorMsg && (
-                <p className="text-xs text-amber-700 mt-0.5 font-mono break-all">{dbErrorMsg}</p>
+                <p className="text-xs text-warning mt-0.5 font-mono break-all">{dbErrorMsg}</p>
               )}
             </div>
             <button
               onClick={fetchReports}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="flex items-center gap-1 text-xs font-medium text-warning hover:text-amber-900 bg-warning/15 hover:bg-warning/25 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
             >
               <MdRefresh className="w-4 h-4" /> Refresh
             </button>
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div className="bg-brand-surface rounded-card border border-brand-border overflow-hidden">
           <div className="px-6 py-4 border-b border-brand-border flex items-center gap-2">
             <MdBarChart className="w-5 h-5 text-primary" />
             <h2 className="text-base font-semibold text-brand-text">Agent & Team Lead Performance</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-brand-border">
+              <thead className="bg-brand-bg border-b border-brand-border">
                 <tr>
                   {['#', 'Name', 'Role', 'Assigned', 'Sold', 'Remaining', 'Sell Rate'].map((h) => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
@@ -97,7 +97,7 @@ export default function AdminReports() {
               </thead>
               <tbody className="divide-y divide-brand-border">
                 {reports.map((row, i) => (
-                  <tr key={row.profile.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={row.profile.id} className="hover:bg-brand-bg transition-colors">
                     <td className="px-5 py-4 text-brand-muted text-xs">{i + 1}</td>
                     <td className="px-5 py-4 font-medium text-brand-text">{row.profile.full_name}</td>
                     <td className="px-5 py-4">
@@ -110,7 +110,7 @@ export default function AdminReports() {
                     <td className="px-5 py-4 text-orange-500 font-medium">{row.remaining}</td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div className="w-20 bg-brand-border rounded-full h-2">
                           <div className="bg-primary rounded-full h-2" style={{ width: `${row.sellRate}%` }} />
                         </div>
                         <span className="text-xs text-brand-muted">{row.sellRate}%</span>

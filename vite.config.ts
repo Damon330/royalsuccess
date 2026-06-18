@@ -39,11 +39,16 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            // Cache database REST responses as a short-lived offline fallback.
+            // Auth endpoints (/auth/v1/*) are intentionally excluded — JWT tokens
+            // must NEVER be served from a cache (stale tokens cause HTTP 400 on
+            // the next refresh attempt and sign users out across all tabs).
+            urlPattern: /^https:\/\/[^/]+\.supabase\.co\/rest\/v1\//i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'supabase-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 300 }
+              cacheName: 'supabase-rest-cache',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 }
             }
           }
         ]
