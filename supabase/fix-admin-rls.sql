@@ -1,6 +1,26 @@
 -- ============================================================
--- Royal Success — Admin RLS Fix
--- Run this in Supabase SQL Editor to fix admin access
+-- ⚠️  SUPERSEDED — DO NOT RUN THIS FILE AGAIN  ⚠️
+-- ============================================================
+--
+-- This was an early emergency fix script. It hardcodes the admin
+-- email directly in each RLS policy using the fragile pattern:
+--   auth.jwt() ->> 'email' = 'patrickwlax@gmail.com'
+--
+-- This approach is unreliable for Google OAuth tokens where the
+-- email may sit in a different JWT path.
+--
+-- THE CANONICAL REPLACEMENT IS: v2-full-migration.sql
+--   • Defines a STABLE is_admin() function that handles all JWT paths
+--   • Uses is_admin() in all RLS policies — evaluated once per query
+--   • Adds proper REVOKE/GRANT on all SECURITY DEFINER functions
+--
+-- Running this file again would DOWNGRADE policies to the fragile
+-- inline email pattern, potentially breaking admin access under
+-- certain OAuth flows.
+-- ============================================================
+
+-- ============================================================
+-- Royal Success — Admin RLS Fix (SUPERSEDED — see warning above)
 -- ============================================================
 
 -- Step 1: Fix the admin profile directly

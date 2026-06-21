@@ -1,5 +1,22 @@
 -- ============================================================
--- Royal Success — Fix Everything (Run this in Supabase SQL Editor)
+-- ⛔  DANGER — NEVER RUN THIS ON PRODUCTION ⛔
+-- ============================================================
+--
+-- THIS SCRIPT:
+--   1. DISABLES Row Level Security on phones, profiles, activity_log
+--      → Every authenticated user can read/write ALL rows.
+--   2. WIPES all phones and all non-admin profiles.
+--   3. Inserts fake demo data with hardcoded UUIDs that have no
+--      auth.users rows — they will break all FK constraints unless
+--      fix-fk-and-continue.sql is run first.
+--
+-- This file was used during early local development only.
+-- The canonical production schema is v2-full-migration.sql.
+-- The canonical RLS policies are also in v2-full-migration.sql.
+--
+-- IF YOU ACCIDENTALLY RAN THIS IN PRODUCTION:
+--   Run v2-full-migration.sql immediately to re-enable RLS and
+--   restore all security policies.
 -- ============================================================
 
 -- Step 1: Disable RLS completely so queries always work
