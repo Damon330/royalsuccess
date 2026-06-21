@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
@@ -71,6 +71,7 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const [showStartModal, setShowStartModal] = useState(false)
   const [showExitModal,  setShowExitModal]  = useState(false)
+  const [editModules,    setEditModules]    = useState<AdminModuleId[] | null>(null)
   const canReadReturns = restrictedMode.isModuleAllowed('inventory')
   const canReadProfiles = restrictedMode.isModuleAllowed('employees')
   const { pendingCount } = useReturns(undefined, 'sidebar', canReadReturns)
@@ -203,7 +204,7 @@ export default function Sidebar() {
               className="mt-2 flex items-center justify-center gap-2 px-3 py-2 w-full rounded-full text-xs font-bold text-amber-900 bg-white/80 hover:bg-white border border-amber-200 transition-colors"
             >
               <MdLockOpen className="w-4 h-4" />
-              Exit Restricted Mode
+              Change Workspace Access
             </button>
           </div>
         ) : (
@@ -227,21 +228,39 @@ export default function Sidebar() {
 
       <StartRestrictedModeModal
         isOpen={showStartModal}
-        onClose={() => setShowStartModal(false)}
+        onClose={() => { setShowStartModal(false); setEditModules(null) }}
+        initialModules={editModules}
       />
       <ExitRestrictedModeModal
         isOpen={showExitModal}
         onClose={() => setShowExitModal(false)}
-        onExited={() => navigate('/admin/dashboard', { replace: true })}
+        onExited={() => {
+          setEditModules(restrictedMode.allowedModules)
+          setShowStartModal(true)
+          navigate('/admin/dashboard', { replace: true })
+        }}
       />
     </aside>
   )
 }
 
-function StartRestrictedModeModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function StartRestrictedModeModal({
+  isOpen,
+  onClose,
+  initialModules,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  initialModules?: AdminModuleId[] | null
+}) {
   const restrictedMode = useRestrictedMode()
+  const navigate = useNavigate()
   const selectableModules = ADMIN_MODULES.filter((module) => !module.alwaysAllowed)
   const [selected, setSelected] = useState<AdminModuleId[]>(['inventory', 'sales'])
+
+  useEffect(() => {
+    if (isOpen) setSelected(initialModules ?? ['inventory', 'sales'])
+  }, [initialModules, isOpen])
 
   function toggle(moduleId: AdminModuleId) {
     setSelected((prev) =>
@@ -261,17 +280,24 @@ function StartRestrictedModeModal({ isOpen, onClose }: { isOpen: boolean; onClos
       toast.error('Choose at least one module.')
       return
     }
-    restrictedMode.startRestrictedMode({
+    const preset = RESTRICTED_MODE_PROFILES.find((profile) =>
+      profile.allowedModules.length === selected.length
+      && profile.allowedModules.every((moduleId) => selected.includes(moduleId)),
+    )
+    const workspace = preset ?? {
       id: 'custom',
-      name: 'Custom Restricted Mode',
+      name: 'Custom Workspace',
       allowedModules: selected,
-    })
-    toast.success('Restricted Work Mode started.')
+      landingPath: '/admin/dashboard',
+    }
+    restrictedMode.startRestrictedMode(workspace)
+    navigate(workspace.landingPath ?? '/admin/dashboard', { replace: true })
+    toast.success(`${workspace.name} applied.`)
     onClose()
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Enter Restricted Work Mode" maxWidth="max-w-lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Choose Workspace Access" maxWidth="max-w-lg">
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {RESTRICTED_MODE_PROFILES.map((profile) => (
@@ -315,7 +341,7 @@ function StartRestrictedModeModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
         <div className="flex gap-3 pt-1">
           <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
-          <Button onClick={start} fullWidth>Start Restricted Mode</Button>
+          <Button onClick={start} fullWidth>Apply Access</Button>
         </div>
       </div>
     </Modal>
@@ -361,16 +387,16 @@ function ExitRestrictedModeModal({
 
     restrictedMode.stopRestrictedMode()
     setPassword('')
-    toast.success('Full administrator access restored.')
+    toast.success('Administrator access confirmed.')
     onClose()
     onExited()
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Exit Restricted Work Mode" maxWidth="max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Authorize Access Change" maxWidth="max-w-md">
       <div className="space-y-4">
         <p className="text-sm text-brand-muted">
-          Re-enter the administrator password to restore full access.
+          Re-enter the administrator password to change the visible workspace tools.
         </p>
         <div>
           <label className="block text-sm font-medium text-brand-text mb-1">Administrator Password</label>
@@ -385,7 +411,7 @@ function ExitRestrictedModeModal({
         </div>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={onClose} fullWidth>Cancel</Button>
-          <Button onClick={verifyAndExit} loading={checking} fullWidth>Restore Access</Button>
+          <Button onClick={verifyAndExit} loading={checking} fullWidth>Continue</Button>
         </div>
       </div>
     </Modal>

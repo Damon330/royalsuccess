@@ -5,25 +5,29 @@ import {
   sanitizeRestrictedModules,
   type AdminModuleId,
   type RestrictedModeProfile,
+  RESTRICTED_MODE_SELECTED_KEY,
+  RESTRICTED_MODE_STORAGE_KEY,
 } from '../lib/adminModules'
 
 interface RestrictedModeContextValue {
   active: boolean
+  selectionRequired: boolean
   profileName: string | null
   allowedModules: AdminModuleId[]
   startRestrictedMode: (profile: RestrictedModeProfile) => void
+  useFullAccess: () => void
   stopRestrictedMode: () => void
   isModuleAllowed: (moduleId: AdminModuleId) => boolean
   firstAllowedPath: string
 }
 
-const STORAGE_KEY = 'royal-success:restricted-mode:v1'
-
 export const RestrictedModeContext = createContext<RestrictedModeContextValue>({
   active: false,
+  selectionRequired: true,
   profileName: null,
   allowedModules: [],
   startRestrictedMode: () => {},
+  useFullAccess: () => {},
   stopRestrictedMode: () => {},
   isModuleAllowed: () => true,
   firstAllowedPath: '/admin/dashboard',
@@ -31,14 +35,15 @@ export const RestrictedModeContext = createContext<RestrictedModeContextValue>({
 
 function readStoredProfile(): RestrictedModeProfile | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = sessionStorage.getItem(RESTRICTED_MODE_STORAGE_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { id?: string; name?: string; allowedModules?: string[] }
+    const parsed = JSON.parse(raw) as { id?: string; name?: string; allowedModules?: string[]; landingPath?: string }
     if (!parsed.id || !parsed.name || !Array.isArray(parsed.allowedModules)) return null
     return {
       id: parsed.id,
       name: parsed.name,
       allowedModules: sanitizeRestrictedModules(parsed.allowedModules),
+      landingPath: parsed.landingPath,
     }
   } catch {
     return null
@@ -47,13 +52,16 @@ function readStoredProfile(): RestrictedModeProfile | null {
 
 export function RestrictedModeProvider({ children }: { children: ReactNode }) {
   const [activeProfile, setActiveProfile] = useState<RestrictedModeProfile | null>(() => readStoredProfile())
+  const [selectionRequired, setSelectionRequired] = useState(() => {
+    try { return sessionStorage.getItem(RESTRICTED_MODE_SELECTED_KEY) !== 'true' } catch { return true }
+  })
 
   useEffect(() => {
     try {
       if (activeProfile) {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(activeProfile))
+        sessionStorage.setItem(RESTRICTED_MODE_STORAGE_KEY, JSON.stringify(activeProfile))
       } else {
-        sessionStorage.removeItem(STORAGE_KEY)
+        sessionStorage.removeItem(RESTRICTED_MODE_STORAGE_KEY)
       }
     } catch {
       // Session storage is a convenience only; app state remains authoritative.
@@ -65,6 +73,14 @@ export function RestrictedModeProvider({ children }: { children: ReactNode }) {
       ...profile,
       allowedModules: sanitizeRestrictedModules(profile.allowedModules),
     })
+    setSelectionRequired(false)
+    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, 'true') } catch { /* optional */ }
+  }, [])
+
+  const useFullAccess = useCallback(() => {
+    setActiveProfile(null)
+    setSelectionRequired(false)
+    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, 'true') } catch { /* optional */ }
   }, [])
 
   const stopRestrictedMode = useCallback(() => {
@@ -79,19 +95,25 @@ export function RestrictedModeProvider({ children }: { children: ReactNode }) {
   }, [activeProfile])
 
   const firstAllowedPath = useMemo(() => {
+    if (activeProfile?.landingPath) {
+      const landingModule = ADMIN_MODULES.find((module) => module.paths.includes(activeProfile.landingPath!))
+      if (landingModule && isModuleAllowed(landingModule.id)) return activeProfile.landingPath
+    }
     const module = ADMIN_MODULES.find((m) => isModuleAllowed(m.id) && m.paths.length > 0)
     return module?.paths[0] ?? '/admin/dashboard'
-  }, [isModuleAllowed])
+  }, [activeProfile, isModuleAllowed])
 
   const value = useMemo<RestrictedModeContextValue>(() => ({
     active: Boolean(activeProfile),
+    selectionRequired,
     profileName: activeProfile?.name ?? null,
     allowedModules: activeProfile?.allowedModules ?? [],
     startRestrictedMode,
+    useFullAccess,
     stopRestrictedMode,
     isModuleAllowed,
     firstAllowedPath,
-  }), [activeProfile, firstAllowedPath, isModuleAllowed, startRestrictedMode, stopRestrictedMode])
+  }), [activeProfile, firstAllowedPath, isModuleAllowed, selectionRequired, startRestrictedMode, stopRestrictedMode, useFullAccess])
 
   return (
     <RestrictedModeContext.Provider value={value}>

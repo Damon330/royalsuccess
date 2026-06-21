@@ -72,6 +72,19 @@ export interface RestrictedModeProfile {
   id: string
   name: string
   allowedModules: AdminModuleId[]
+  landingPath?: string
+}
+
+export const RESTRICTED_MODE_STORAGE_KEY = 'royal-success:restricted-mode:v1'
+export const RESTRICTED_MODE_SELECTED_KEY = 'royal-success:workspace-selected:v1'
+
+export function clearRestrictedModeSession() {
+  try {
+    sessionStorage.removeItem(RESTRICTED_MODE_STORAGE_KEY)
+    sessionStorage.removeItem(RESTRICTED_MODE_SELECTED_KEY)
+  } catch {
+    // Storage is optional; auth state remains authoritative.
+  }
 }
 
 export const RESTRICTED_MODE_PROFILES: RestrictedModeProfile[] = [
@@ -79,16 +92,19 @@ export const RESTRICTED_MODE_PROFILES: RestrictedModeProfile[] = [
     id: 'front-desk',
     name: 'Front Desk Mode',
     allowedModules: ['inventory', 'sales'],
+    landingPath: '/admin/inventory',
   },
   {
     id: 'inventory',
     name: 'Inventory Mode',
     allowedModules: ['inventory'],
+    landingPath: '/admin/inventory',
   },
   {
     id: 'sales',
     name: 'Sales Mode',
     allowedModules: ['sales'],
+    landingPath: '/admin/receipts',
   },
 ]
 

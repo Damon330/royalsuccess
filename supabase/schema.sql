@@ -56,16 +56,34 @@ create index on public.activity_log (performed_by);
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name, status)
+  insert into public.profiles (id, full_name, phone_number, status)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    nullif(new.raw_user_meta_data->>'phone_number', ''),
     'pending'
   )
   on conflict (id) do nothing;
   return new;
 end;
 $$;
+
+create or replace function public.auth_email_exists(p_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = auth, public
+as $$
+  select exists (
+    select 1
+    from auth.users u
+    where lower(u.email) = lower(trim(p_email))
+  );
+$$;
+
+revoke all on function public.auth_email_exists(text) from public;
+grant execute on function public.auth_email_exists(text) to anon, authenticated;
 
 create trigger on_auth_user_created
   after insert on auth.users

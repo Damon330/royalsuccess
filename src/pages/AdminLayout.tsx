@@ -7,6 +7,7 @@ import { SystemHealthProvider } from '../context/SystemHealthContext'
 import SystemHealthMonitor from '../components/shared/SystemHealthMonitor'
 import Sidebar from '../components/shared/Sidebar'
 import Spinner from '../components/shared/Spinner'
+import AdminWorkspaceSelector from '../components/admin/AdminWorkspaceSelector'
 
 const AdminDashboard    = lazy(() => import('../components/admin/AdminDashboard'))
 const AdminInventory    = lazy(() => import('../components/admin/AdminInventory'))
@@ -69,6 +70,8 @@ export default function AdminLayout() {
 
 function AdminShell() {
   const restrictedMode = useRestrictedMode()
+
+  if (restrictedMode.selectionRequired) return <AdminWorkspaceSelector />
 
   return (
     <SystemHealthProvider>

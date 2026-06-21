@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
 import type { Profile } from '../types'
 import { ADMIN_EMAIL } from '../lib/constants'
+import { clearRestrictedModeSession } from '../lib/adminModules'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -197,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await fetchProfile(s.user.id, s.user.email)
           } else {
             try { sessionStorage.removeItem('rs-uid') } catch { /* ignore */ }
+            clearRestrictedModeSession()
             setProfile(null)
           }
         } catch {
@@ -232,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // fires SIGNED_OUT in this tab; other tabs detect the localStorage change
     // via the storage event and also emit SIGNED_OUT — all tabs cleanly exit.
     await supabase.auth.signOut()
+    clearRestrictedModeSession()
     setProfile(null)
   }
 

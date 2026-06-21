@@ -8,11 +8,26 @@ import { FcGoogle } from 'react-icons/fc'
 const MAX_ATTEMPTS   = 5
 const LOCKOUT_MS     = 30_000  // 30 seconds
 const MIN_PW_LENGTH  = 8
+const PHONE_RE        = /^\+?[0-9\s().-]{7,20}$/
 
 function validatePassword(pw: string): string | null {
   if (pw.length < MIN_PW_LENGTH) return `Password must be at least ${MIN_PW_LENGTH} characters.`
   if (!/[A-Z]/.test(pw))         return 'Password must contain at least one uppercase letter.'
   if (!/[0-9]/.test(pw))         return 'Password must contain at least one number.'
+  return null
+}
+
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function normalizePhone(value: string): string {
+  return value.replace(/[^\d+]/g, '').slice(0, 20)
+}
+
+function validatePhone(phone: string): string | null {
+  if (!phone.trim()) return 'Phone number is required.'
+  if (!PHONE_RE.test(phone.trim())) return 'Enter a valid phone number.'
   return null
 }
 
@@ -40,8 +55,9 @@ export default function LoginPage() {
   const [email,         setEmail]         = useState('')
   const [password,      setPassword]      = useState('')
   const [fullName,      setFullName]      = useState('')
+  const [phoneNumber,   setPhoneNumber]   = useState('')
   const [loading,       setLoading]       = useState(false)
-  const [showSignupHint,setShowSignupHint]= useState(false)
+  const [signupHint,    setSignupHint]    = useState<'missing' | 'generic' | null>(null)
 
   // Client-side brute-force protection
   const attempts     = useRef(0)
@@ -97,16 +113,36 @@ export default function LoginPage() {
     e.preventDefault()
     if (!checkRateLimit()) return
 
+    const cleanEmail = normalizeEmail(email)
+
     if (mode === 'signup') {
       const pwError = validatePassword(password)
       if (pwError) { toast.error(pwError); return }
       if (!fullName.trim()) { toast.error('Full name is required.'); return }
+      const phoneError = validatePhone(phoneNumber)
+      if (phoneError) { toast.error(phoneError); return }
 
       setLoading(true)
+      const { data: existingAccount, error: signupLookupError } = await supabase.rpc('auth_email_exists', {
+        p_email: cleanEmail,
+      })
+
+      if (!signupLookupError && existingAccount === true) {
+        setLoading(false)
+        toast.error('An account already exists for this email. Sign in instead.')
+        setMode('signin')
+        return
+      }
+
       const { error } = await supabase.auth.signUp({
-        email:    email.trim().toLowerCase(),
+        email:    cleanEmail,
         password,
-        options: { data: { full_name: fullName.trim() } },
+        options: {
+          data: {
+            full_name:    fullName.trim(),
+            phone_number: normalizePhone(phoneNumber),
+          },
+        },
       })
       setLoading(false)
       if (error) {
@@ -114,26 +150,38 @@ export default function LoginPage() {
         toast.error('Could not create account. Check your details and try again.')
         recordAttempt(true)
       } else {
-        toast.success('Account created! Awaiting admin approval.')
+        toast.success('Account created. Check your email, then await admin approval.')
         recordAttempt(false)
       }
       return
     }
 
     setLoading(true)
+
+    const { data: emailExists, error: lookupError } = await supabase.rpc('auth_email_exists', {
+      p_email: cleanEmail,
+    })
+
+    if (!lookupError && emailExists === false) {
+      setLoading(false)
+      setSignupHint('missing')
+      toast.error('No account found for this email.')
+      recordAttempt(false)
+      return
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email:    email.trim().toLowerCase(),
+      email:    cleanEmail,
       password,
     })
     setLoading(false)
 
     if (error) {
-      // Single generic message prevents email enumeration
-      toast.error('Email or password is incorrect.')
-      setShowSignupHint(true)
+      toast.error(lookupError ? 'Email or password is incorrect.' : 'Password is incorrect.')
+      setSignupHint(lookupError ? 'generic' : null)
       recordAttempt(true)
     } else {
-      setShowSignupHint(false)
+      setSignupHint(null)
       recordAttempt(false)
     }
   }
@@ -201,17 +249,32 @@ export default function LoginPage() {
           <>
             <form onSubmit={handleEmailAuth} className="space-y-4">
               {mode === 'signup' && (
-                <div>
-                  <label className="block text-sm font-medium text-brand-text mb-1">Full Name</label>
-                  <input
-                    type="text" required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Your full name"
-                    maxLength={100}
-                    className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-brand-text mb-1">Full Name</label>
+                    <input
+                      type="text" required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Your full name"
+                      maxLength={100}
+                      className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-brand-text mb-1">Phone Number</label>
+                    <input
+                      type="tel" required
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(normalizePhone(e.target.value))}
+                      placeholder="+234 XXX XXX XXXX"
+                      autoComplete="tel"
+                      maxLength={20}
+                      className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                </>
               )}
 
               <div>
@@ -219,7 +282,7 @@ export default function LoginPage() {
                 <input
                   type="email" required
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); setShowSignupHint(false) }}
+                  onChange={(e) => { setEmail(e.target.value); setSignupHint(null) }}
                   placeholder="you@example.com"
                   autoComplete={mode === 'signin' ? 'username' : 'email'}
                   className="w-full border border-brand-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -251,14 +314,16 @@ export default function LoginPage() {
                 {mode === 'signin' ? 'Sign In' : 'Create Account'}
               </Button>
 
-              {mode === 'signin' && showSignupHint && (
+              {mode === 'signin' && signupHint && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
-                  <p className="font-medium text-amber-800">Email or password is incorrect.</p>
+                  <p className="font-medium text-amber-800">
+                    {signupHint === 'missing' ? 'No account found for this email.' : 'Email or password is incorrect.'}
+                  </p>
                   <p className="text-amber-700 mt-0.5">
-                    No account?{' '}
-                    <button type="button" onClick={() => { setMode('signup'); setShowSignupHint(false) }}
+                    {signupHint === 'missing' ? 'Create an account to request access.' : 'Need a new account?'}{' '}
+                    <button type="button" onClick={() => { setMode('signup'); setSignupHint(null) }}
                       className="font-semibold underline hover:text-amber-900">
-                      Create one
+                      Create Account
                     </button>
                   </p>
                 </div>
@@ -267,7 +332,7 @@ export default function LoginPage() {
 
             <p className="text-center text-sm text-brand-muted mt-5">
               {mode === 'signin' ? "Don't have an account?" : 'Already have an account?'}{' '}
-              <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setShowSignupHint(false) }}
+              <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setSignupHint(null) }}
                 className="text-primary font-medium hover:underline">
                 {mode === 'signin' ? 'Sign Up' : 'Sign In'}
               </button>
