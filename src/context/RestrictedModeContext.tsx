@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../hooks/useAuth'
 import {
   ADMIN_MODULES,
   getAdminModule,
@@ -51,9 +52,11 @@ function readStoredProfile(): RestrictedModeProfile | null {
 }
 
 export function RestrictedModeProvider({ children }: { children: ReactNode }) {
+  const { session } = useAuth()
+  const loginMarker = `${session?.user.id ?? 'unknown'}:${session?.user.last_sign_in_at ?? 'current'}`
   const [activeProfile, setActiveProfile] = useState<RestrictedModeProfile | null>(() => readStoredProfile())
   const [selectionRequired, setSelectionRequired] = useState(() => {
-    try { return sessionStorage.getItem(RESTRICTED_MODE_SELECTED_KEY) !== 'true' } catch { return true }
+    try { return sessionStorage.getItem(RESTRICTED_MODE_SELECTED_KEY) !== loginMarker } catch { return true }
   })
 
   useEffect(() => {
@@ -74,14 +77,14 @@ export function RestrictedModeProvider({ children }: { children: ReactNode }) {
       allowedModules: sanitizeRestrictedModules(profile.allowedModules),
     })
     setSelectionRequired(false)
-    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, 'true') } catch { /* optional */ }
-  }, [])
+    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, loginMarker) } catch { /* optional */ }
+  }, [loginMarker])
 
   const useFullAccess = useCallback(() => {
     setActiveProfile(null)
     setSelectionRequired(false)
-    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, 'true') } catch { /* optional */ }
-  }, [])
+    try { sessionStorage.setItem(RESTRICTED_MODE_SELECTED_KEY, loginMarker) } catch { /* optional */ }
+  }, [loginMarker])
 
   const stopRestrictedMode = useCallback(() => {
     setActiveProfile(null)
