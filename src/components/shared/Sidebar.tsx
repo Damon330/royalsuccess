@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
 import { useReturns } from '../../hooks/useReturns'
 import { useProfiles } from '../../hooks/useProfiles'
@@ -19,6 +18,7 @@ import {
   MdDashboard, MdInventory2, MdPeople, MdPhoneAndroid,
   MdBarChart, MdLogout, MdUndo, MdHistory, MdReceipt, MdTrendingUp,
   MdAttachMoney, MdPerson, MdSettings, MdBugReport, MdLock, MdLockOpen,
+  MdChevronRight,
 } from 'react-icons/md'
 
 interface NavItem {
@@ -167,62 +167,54 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User card */}
-      <div className="px-3 pb-5 pt-3 flex-shrink-0">
-        {/* Divider */}
-        <div className="h-px bg-brand-border mb-3 mx-1" />
+      {/* Account and workspace */}
+      <div className="px-3 pb-4 pt-3 flex-shrink-0">
+        <div className="h-px bg-brand-border mb-3 mx-2" />
 
-        <motion.div
-          whileHover={{ scale: 1.01 }}
-          className="flex items-center gap-3 px-3 py-3 rounded-card bg-brand-surface shadow-soft mb-2 cursor-default"
-        >
+        <div className="flex items-center gap-3 px-2 py-2">
           <div className="w-9 h-9 bg-gradient-primary rounded-inner flex items-center justify-center flex-shrink-0 shadow-pill">
             <span className="text-white font-bold text-xs">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-brand-text truncate">{profile?.full_name ?? 'Admin'}</p>
-            <p className="text-[11px] text-brand-muted font-medium">Administrator</p>
+            <p className="text-[13px] font-bold text-brand-text truncate">{profile?.full_name ?? 'Admin'}</p>
+            <p className="text-[11px] text-brand-muted mt-0.5">Administrator</p>
           </div>
-        </motion.div>
-
-        {/* System health indicator */}
-        <div className="mb-1">
-          <HealthStatusChip />
         </div>
 
-        {restrictedMode.active ? (
-          <div className="mb-2 rounded-card border border-amber-200 bg-amber-50 px-3 py-3">
-            <div className="flex items-start gap-2">
-              <MdLock className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-amber-900">Restricted Work Mode</p>
-                <p className="text-[11px] text-amber-700 truncate">{restrictedMode.profileName}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowExitModal(true)}
-              className="mt-2 flex items-center justify-center gap-2 px-3 py-2 w-full rounded-full text-xs font-bold text-amber-900 bg-white/80 hover:bg-white border border-amber-200 transition-colors"
-            >
-              <MdLockOpen className="w-4 h-4" />
-              Change Workspace Access
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowStartModal(true)}
-            className="mb-2 flex items-center gap-3 px-3 py-2.5 w-full rounded-full text-sm font-medium text-brand-muted hover:bg-primary/8 hover:text-brand-text transition-all duration-150 group"
-          >
-            <MdLock className="w-[18px] h-[18px] group-hover:text-primary transition-colors" />
-            Restricted Work Mode
-          </button>
-        )}
+        <div className="px-1 mb-1">
+          <HealthStatusChip showLatency={false} />
+        </div>
+
+        <button
+          onClick={() => restrictedMode.active ? setShowExitModal(true) : setShowStartModal(true)}
+          className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-inner text-left hover:bg-brand-surface focus:outline-none focus:ring-2 focus:ring-primary/30 transition-colors"
+          title={restrictedMode.active ? 'Change workspace access' : 'Choose workspace access'}
+        >
+          <span className={`w-8 h-8 rounded-inner flex items-center justify-center flex-shrink-0 ${
+            restrictedMode.active
+              ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
+              : 'bg-primary/10 text-primary'
+          }`}>
+            {restrictedMode.active
+              ? <MdLock className="w-4 h-4" />
+              : <MdLockOpen className="w-4 h-4" />
+            }
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[11px] text-brand-muted">Workspace</span>
+            <span className="block text-xs font-semibold text-brand-text truncate mt-0.5">
+              {restrictedMode.active ? restrictedMode.profileName : 'Full Admin Access'}
+            </span>
+          </span>
+          <MdChevronRight className="w-4 h-4 text-brand-muted/60 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+        </button>
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-full text-sm font-medium text-brand-muted hover:bg-negative/8 hover:text-negative transition-all duration-150 group"
+          className="mt-1 flex items-center gap-3 px-3 py-2 w-full rounded-inner text-xs font-medium text-brand-muted hover:bg-negative/8 hover:text-negative transition-colors group"
         >
-          <MdLogout className="w-[18px] h-[18px] group-hover:translate-x-0.5 transition-transform" />
-          Sign Out
+          <MdLogout className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          <span>Sign Out</span>
         </button>
       </div>
 

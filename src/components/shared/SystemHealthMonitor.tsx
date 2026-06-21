@@ -243,7 +243,7 @@ export default function SystemHealthMonitor() {
 }
 
 // ── Compact chip — used in Sidebar footer ──────────────────────────────────
-export function HealthStatusChip() {
+export function HealthStatusChip({ showLatency = true }: { showLatency?: boolean }) {
   const { health, recheckNow } = useHealth()
   const [checking, setChecking] = useState(false)
 
@@ -270,7 +270,7 @@ export function HealthStatusChip() {
       onClick={handleClick}
       disabled={checking}
       title={health.errorMessage ?? label[health.status]}
-      className="flex items-center gap-2 w-full px-3 py-2 rounded-inner hover:bg-brand-bg transition-colors group"
+      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-inner hover:bg-brand-surface transition-colors group"
     >
       <PingDot status={checking ? 'checking' : health.status} />
       <span className={`flex-1 text-left text-xs font-semibold ${
@@ -281,7 +281,7 @@ export function HealthStatusChip() {
       }`}>
         {checking ? 'Checking…' : label[health.status]}
       </span>
-      {health.latencyMs !== null && !isUnhealthy && !checking && (
+      {showLatency && health.latencyMs !== null && !isUnhealthy && !checking && (
         <span className="text-[10px] font-mono text-brand-muted">{health.latencyMs}ms</span>
       )}
       {isUnhealthy && (
