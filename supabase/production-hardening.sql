@@ -56,19 +56,27 @@ $$;
 -- health_check() is intentionally PUBLIC-accessible (diagnostic, no sensitive data).
 DO $$
 DECLARE
-  fn text;
+  fn_name text;
+  fn_rec  record;
 BEGIN
-  FOREACH fn IN ARRAY ARRAY[
+  FOREACH fn_name IN ARRAY ARRAY[
     'notify_on_sale',
     'log_activity',
     'admin_delete_profile'
   ] LOOP
-    IF EXISTS (
-      SELECT 1 FROM pg_proc WHERE proname = fn AND pronamespace = 'public'::regnamespace
-    ) THEN
-      EXECUTE format('REVOKE ALL ON FUNCTION public.%I() FROM PUBLIC', fn);
-      EXECUTE format('GRANT  EXECUTE ON FUNCTION public.%I() TO authenticated', fn);
-    END IF;
+    -- Look up each overload's exact argument types from pg_proc so we can
+    -- construct the correct signature (avoids "function does not exist" when
+    -- the function has parameters).
+    FOR fn_rec IN
+      SELECT p.oid,
+             pg_get_function_identity_arguments(p.oid) AS args
+      FROM   pg_proc p
+      WHERE  p.proname       = fn_name
+        AND  p.pronamespace  = 'public'::regnamespace
+    LOOP
+      EXECUTE format('REVOKE ALL ON FUNCTION public.%I(%s) FROM PUBLIC',        fn_name, fn_rec.args);
+      EXECUTE format('GRANT  EXECUTE ON FUNCTION public.%I(%s) TO authenticated', fn_name, fn_rec.args);
+    END LOOP;
   END LOOP;
 END;
 $$;
