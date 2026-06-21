@@ -1,4 +1,4 @@
-﻿import { useState, useRef } from 'react'
+import { useState, useRef } from 'react'
 import Header from '../shared/Header'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
@@ -8,7 +8,7 @@ import Pagination from '../shared/Pagination'
 import { useProfiles } from '../../hooks/useProfiles'
 import { useAgentsPage, AGENTS_PAGE_SIZE } from '../../hooks/useAgentsPage'
 import type { Profile, Role } from '../../types'
-import { MdPersonAdd, MdEdit, MdWarning, MdRefresh, MdSearch } from 'react-icons/md'
+import { MdPersonAdd, MdEdit, MdWarning, MdRefresh, MdSearch, MdDelete } from 'react-icons/md'
 
 function RoleModal({
   title, user, teamLeads, onClose, onSave,
@@ -56,10 +56,97 @@ function RoleModal({
   )
 }
 
+function DeleteUserModal({
+  user, teamLeads, onClose, onConfirm,
+}: {
+  user: Profile
+  teamLeads: Profile[]
+  onClose: () => void
+  onConfirm: () => Promise<void>
+}) {
+  const [typed,   setTyped]   = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const teamLeadName = user.role === 'agent'
+    ? teamLeads.find((tl) => tl.id === user.team_lead_id)?.full_name
+    : null
+
+  const confirmed = typed.trim().toLowerCase() === user.full_name.trim().toLowerCase()
+
+  async function handleDelete() {
+    if (!confirmed) return
+    setLoading(true)
+    await onConfirm()
+    setLoading(false)
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} title="Delete User">
+      <div className="space-y-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-1">
+          <p className="font-semibold text-brand-text">{user.full_name}</p>
+          <div className="flex items-center gap-2">
+            <Badge variant={user.role === 'team_lead' ? 'blue' : 'green'}>
+              {user.role === 'team_lead' ? 'Team Lead' : 'Agent'}
+            </Badge>
+            {teamLeadName && (
+              <span className="text-xs text-brand-muted">under {teamLeadName}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="text-sm text-brand-muted space-y-1">
+          <p>This will permanently remove the user:</p>
+          <ul className="list-disc list-inside space-y-0.5 mt-1 text-xs">
+            <li>All phones assigned to them return to stock.</li>
+            {user.role === 'team_lead' && (
+              <li>Agents in this team will be unassigned from the team.</li>
+            )}
+            <li>This cannot be undone.</li>
+          </ul>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-brand-text">
+            Type <span className="font-bold text-brand-text">{user.full_name}</span> to confirm
+          </label>
+          <input
+            type="text"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && confirmed) handleDelete() }}
+            placeholder={user.full_name}
+            autoFocus
+            className={`w-full border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors ${
+              typed && confirmed
+                ? 'border-danger focus:ring-danger'
+                : 'border-brand-border focus:ring-primary'
+            }`}
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={onClose} fullWidth disabled={loading}>Cancel</Button>
+          <Button
+            onClick={handleDelete}
+            loading={loading}
+            disabled={!confirmed}
+            fullWidth
+            className="bg-danger hover:bg-red-700 focus:ring-danger disabled:opacity-40"
+          >
+            Delete User
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 export default function AdminAgents() {
-  const { teamLeads, approveUser, updateRole } = useProfiles()
+  const { teamLeads, approveUser, updateRole, deleteProfile } = useProfiles()
   const [approvingUser, setApprovingUser] = useState<Profile | null>(null)
   const [editingUser,   setEditingUser]   = useState<Profile | null>(null)
+  const [deletingUser,  setDeletingUser]  = useState<Profile | null>(null)
 
   const [page,            setPage]           = useState(1)
   const [roleFilter,      setRoleFilter]     = useState<'all' | 'agent' | 'team_lead'>('all')
@@ -162,7 +249,16 @@ export default function AdminAgents() {
                         <p className="text-sm font-medium text-brand-text">{user.full_name}</p>
                         <p className="text-xs text-brand-muted">{new Date(user.created_at).toLocaleDateString()}</p>
                       </div>
-                      <Button size="sm" onClick={() => setApprovingUser(user)}>Approve</Button>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" onClick={() => setApprovingUser(user)}>Approve</Button>
+                        <button
+                          onClick={() => setDeletingUser(user)}
+                          className="text-brand-muted hover:text-danger transition-colors p-1"
+                          title="Delete user"
+                        >
+                          <MdDelete className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -203,9 +299,18 @@ export default function AdminAgents() {
                         </td>
                         <td className="px-5 py-4 text-brand-muted">{new Date(user.created_at).toLocaleDateString()}</td>
                         <td className="px-5 py-4">
-                          <Button variant="ghost" size="sm" onClick={() => setEditingUser(user)}>
-                            <MdEdit className="w-4 h-4" /> Edit
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => setEditingUser(user)}>
+                              <MdEdit className="w-4 h-4" /> Edit
+                            </Button>
+                            <button
+                              onClick={() => setDeletingUser(user)}
+                              className="text-brand-muted hover:text-danger transition-colors p-1"
+                              title="Delete user"
+                            >
+                              <MdDelete className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -232,12 +337,32 @@ export default function AdminAgents() {
       {approvingUser && (
         <RoleModal title={`Approve: ${approvingUser.full_name}`} user={approvingUser} teamLeads={teamLeads}
           onClose={() => setApprovingUser(null)}
-          onSave={async (role, tlId) => { await approveUser(approvingUser.id, role, tlId); setApprovingUser(null) }} />
+          onSave={async (role, tlId) => {
+            await approveUser(approvingUser.id, role, tlId)
+            refetch()
+            setApprovingUser(null)
+          }} />
       )}
       {editingUser && (
         <RoleModal title={`Edit: ${editingUser.full_name}`} user={editingUser} teamLeads={teamLeads}
           onClose={() => setEditingUser(null)}
-          onSave={async (role, tlId) => { await updateRole(editingUser.id, role, tlId); setEditingUser(null) }} />
+          onSave={async (role, tlId) => {
+            await updateRole(editingUser.id, role, tlId)
+            refetch()
+            setEditingUser(null)
+          }} />
+      )}
+      {deletingUser && (
+        <DeleteUserModal
+          user={deletingUser}
+          teamLeads={teamLeads}
+          onClose={() => setDeletingUser(null)}
+          onConfirm={async () => {
+            await deleteProfile(deletingUser.id)
+            refetch()
+            setDeletingUser(null)
+          }}
+        />
       )}
     </div>
   )

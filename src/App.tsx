@@ -87,9 +87,9 @@ function FullPageSpinner() {
 }
 
 export default function App() {
-  const { session, profile, loading, isPasswordRecovery } = useAuth()
+  const { session, profile, loading, profileLoading, isPasswordRecovery } = useAuth()
 
-  if (loading) return <FullPageSpinner />
+  if (loading || profileLoading) return <FullPageSpinner />
 
   if (isPasswordRecovery) return <ResetPasswordPage />
 
@@ -111,8 +111,10 @@ export default function App() {
     )
   }
 
-  // Non-admin: wait for profile to resolve before rendering role-gated routes
-  if (!profile || profile.status === 'pending') {
+  // Profile hasn't arrived yet — still fetching, not genuinely pending.
+  if (!profile) return <FullPageSpinner />
+
+  if (profile.status === 'pending') {
     return (
       <Suspense fallback={<FullPageSpinner />}>
         <PendingPage />

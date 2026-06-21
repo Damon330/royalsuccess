@@ -12,6 +12,7 @@ interface AuthContextValue {
   session:               Session | null
   profile:               Profile | null
   loading:               boolean
+  profileLoading:        boolean
   isPasswordRecovery:    boolean
   clearPasswordRecovery: () => void
   signOut:               () => Promise<void>
@@ -23,6 +24,7 @@ export const AuthContext = createContext<AuthContextValue>({
   session:               null,
   profile:               null,
   loading:               true,
+  profileLoading:        false,
   isPasswordRecovery:    false,
   clearPasswordRecovery: () => {},
   signOut:               async () => {},
@@ -50,19 +52,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile,            setProfile]            = useState<Profile | null>(null)
   const recoveryOnLoad = checkUrlForRecovery()
   const [loading,            setLoading]            = useState(!recoveryOnLoad)
+  const [profileLoading,     setProfileLoading]     = useState(false)
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(recoveryOnLoad)
   const initialised = useRef(false)
 
   // ── Profile fetch ────────────────────────────────────────────────────────
-  // Separated from auth state: profile is app data, not auth data.
-  async function fetchProfile(userId: string, email?: string | null) {
-    const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
+  // Returns profile data without touching state — lets the caller batch
+  // setSession + setProfile + setProfileLoading into a single React render,
+  // eliminating any intermediate render where session is set but profile is not.
+  const PROFILE_TIMEOUT = 8_000
 
-    // 8 s ceiling on all profile fetches. The global 45 s Supabase fetch
-    // timeout is the hard outer limit, but we want the loading screen to clear
-    // quickly even when the DB is still waking up. On timeout we fall back to
-    // a minimal profile so the user can reach the app; data hooks refetch later.
-    const PROFILE_TIMEOUT = 8_000
+  async function loadProfile(userId: string, email?: string | null): Promise<Profile | null> {
+    const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
 
     if (isAdmin) {
       try {
@@ -81,11 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
             PROFILE_TIMEOUT,
           )
-          setProfile(fresh ?? {
+          return fresh ?? {
             id: userId, full_name: 'Admin', phone_number: null,
             role: 'admin'  as const, team_lead_id: null,
             status: 'active' as const, created_at: new Date().toISOString(),
-          })
+          }
         } else {
           if (existing.role !== 'admin' || existing.status !== 'active') {
             await withTimeout(
@@ -94,35 +95,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               PROFILE_TIMEOUT,
             )
           }
-          setProfile({ ...existing, role: 'admin' as const, status: 'active' as const })
+          return { ...existing, role: 'admin' as const, status: 'active' as const }
         }
       } catch {
-        // DB still waking up — render with a minimal admin profile.
-        // The dashboard hooks will re-fetch once the DB responds.
-        setProfile({
+        return {
           id: userId, full_name: 'Admin', phone_number: null,
           role: 'admin' as const, team_lead_id: null,
           status: 'active' as const, created_at: new Date().toISOString(),
-        })
+        }
       }
-      return
     }
 
-    // Non-admin: same 8 s guard.
     try {
       const { data } = await withTimeout(
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
         PROFILE_TIMEOUT,
       )
-      setProfile(data ?? null)
+      return data ?? null
     } catch {
-      setProfile(null)
+      return null
     }
   }
 
   async function refreshProfile() {
     if (!session) return
-    await fetchProfile(session.user.id, session.user.email)
+    setProfileLoading(true)
+    const data = await loadProfile(session.user.id, session.user.email)
+    setProfile(data)
+    setProfileLoading(false)
   }
 
   // ── Auth listener — exactly one, mounted once ────────────────────────────
@@ -144,14 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   //    emit SIGNED_OUT. One tab deciding its refresh was "too slow" should not
   //    eject every other tab.
   //
-  //  • The initTimeout is a non-destructive safety valve: after 10 s it clears
+  //  • The initTimeout is a non-destructive safety valve: after 35 s it clears
   //    the loading spinner so the user sees the login page rather than a
-  //    frozen spinner. It does NOT touch the session or localStorage — if
-  //    Supabase is still refreshing in the background it will complete normally.
+  //    frozen spinner forever. It does NOT touch the session or localStorage.
   useEffect(() => {
-    // 35 s — longer than Supabase free-tier GoTrue cold-start (typically 20–30 s).
-    // If TOKEN_REFRESHED or SIGNED_OUT has not fired by then, we clear loading so
-    // the user sees the login page rather than a frozen spinner forever.
     const initTimeout = setTimeout(() => {
       if (!initialised.current) {
         initialised.current = true
@@ -175,34 +171,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // ── Cold-start guard ────────────────────────────────────────────────────
         // Supabase fires INITIAL_SESSION immediately with whatever is in
-        // localStorage — even an expired access token. If we accept that session
-        // and show the dashboard, every DB call fails with 401 until the background
-        // refresh completes (which can take 20–30 s on the free tier while GoTrue
-        // wakes from sleep). Instead, stay in loading state and wait for either
-        // TOKEN_REFRESHED (refresh succeeded) or SIGNED_OUT (refresh failed /
-        // refresh token expired). The initTimeout above falls back to the login
-        // page if neither fires within 35 s.
+        // localStorage — even an expired access token. Stay in loading state and
+        // wait for TOKEN_REFRESHED or SIGNED_OUT rather than accepting a stale token.
         if (_event === 'INITIAL_SESSION' && s) {
           const nowSecs   = Math.floor(Date.now() / 1000)
           const expiresAt = s.expires_at ?? 0
           if (expiresAt <= nowSecs) {
-            return  // token is expired — stay loading, wait for refresh result
+            return
           }
         }
-
-        setSession(s)
 
         try {
           if (s) {
             try { sessionStorage.setItem('rs-uid', s.user.id) } catch { /* ignore */ }
-            await fetchProfile(s.user.id, s.user.email)
+            // Mark profile as loading so App.tsx shows a spinner instead of
+            // PendingPage during the async fetch — prevents the flash where
+            // a stale/previous profile.status briefly triggers the wrong screen.
+            setProfileLoading(true)
+            const profileData = await loadProfile(s.user.id, s.user.email)
+            // Batch all three updates — React 18 flushes them in one render,
+            // so there is no intermediate state where session=set but profile=stale.
+            setSession(s)
+            setProfile(profileData)
+            setProfileLoading(false)
           } else {
             try { sessionStorage.removeItem('rs-uid') } catch { /* ignore */ }
             clearRestrictedModeSession()
+            setSession(s)
             setProfile(null)
           }
         } catch {
-          // fetchProfile failure is non-critical — user is still authenticated.
+          setSession(s)
+          setProfileLoading(false)
         } finally {
           if (!initialised.current) {
             initialised.current = true
@@ -229,10 +229,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    // supabase.auth.signOut() with default scope:'global' calls the server,
-    // invalidates the refresh token, and clears localStorage. onAuthStateChange
-    // fires SIGNED_OUT in this tab; other tabs detect the localStorage change
-    // via the storage event and also emit SIGNED_OUT — all tabs cleanly exit.
     await supabase.auth.signOut()
     clearRestrictedModeSession()
     setProfile(null)
@@ -244,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      session, profile, loading, isPasswordRecovery,
+      session, profile, loading, profileLoading, isPasswordRecovery,
       clearPasswordRecovery, signOut, refreshProfile, updateProfileState,
     }}>
       {children}

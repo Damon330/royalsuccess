@@ -17,7 +17,7 @@ import toast from 'react-hot-toast'
 import {
   MdAdd, MdQrCode2, MdWarning, MdRefresh, MdUploadFile,
   MdDownload, MdCheckCircle, MdQrCodeScanner, MdCameraAlt,
-  MdWifi, MdErrorOutline, MdEdit,
+  MdWifi, MdErrorOutline, MdEdit, MdDelete,
 } from 'react-icons/md'
 
 const PHONE_MODELS = [
@@ -116,7 +116,7 @@ function ScanResultBanner({ phone, onClose }: { phone: Phone; onClose: () => voi
 
 export default function AdminInventory() {
   const { profile } = useAuth()
-  const { addPhone, addPhonesBulk, importPhones, lookupByBarcode, updatePhone } = usePhones()
+  const { addPhone, addPhonesBulk, importPhones, lookupByBarcode, updatePhone, deletePhone } = usePhones()
   const { profiles } = useProfiles()
   const queryClient  = useQueryClient()
 
@@ -143,6 +143,8 @@ export default function AdminInventory() {
   const [editingPhone,   setEditingPhone]   = useState<Phone | null>(null)
   const [editModel,      setEditModel]      = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
+  const [deletingPhone,  setDeletingPhone]  = useState<Phone | null>(null)
+  const [deleteLoading,  setDeleteLoading]  = useState(false)
 
   // ── Scan-tab state ──────────────────────────────────────────────────────
   const [scanStep,    setScanStep]    = useState<ScanStep>('scanning')
@@ -247,9 +249,14 @@ export default function AdminInventory() {
   }
   // ── End scan-tab state ──────────────────────────────────────────────────
 
-  function getAssigneeName(assignedTo: string | null) {
-    if (!assignedTo) return '—'
-    return profiles.find((p) => p.id === assignedTo)?.full_name ?? '—'
+  function getHolderInfo(assignedTo: string | null): { agentName: string; teamLeadName: string | null } {
+    if (!assignedTo) return { agentName: '—', teamLeadName: null }
+    const agent = profiles.find((p) => p.id === assignedTo)
+    if (!agent) return { agentName: '—', teamLeadName: null }
+    const teamLeadName = agent.team_lead_id
+      ? (profiles.find((p) => p.id === agent.team_lead_id)?.full_name ?? null)
+      : null
+    return { agentName: agent.full_name, teamLeadName }
   }
 
   function resetModal() {
@@ -439,7 +446,7 @@ export default function AdminInventory() {
               <table className="w-full text-sm">
                 <thead className="bg-brand-bg border-b border-brand-border">
                   <tr>
-                    {['Model', 'Barcode / IMEI', 'Status', 'Holder', 'Added', ''].map((h) => (
+                    {['Model', 'Barcode / IMEI', 'Status', 'Holder / Team', 'Added', ''].map((h) => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-brand-muted uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -454,16 +461,37 @@ export default function AdminInventory() {
                       <td className="px-5 py-4">
                         <Badge variant={STATUS_VARIANT[phone.status]}>{STATUS_LABEL[phone.status]}</Badge>
                       </td>
-                      <td className="px-5 py-4 text-brand-muted">{getAssigneeName(phone.assigned_to)}</td>
+                      <td className="px-5 py-4">
+                        {(() => {
+                          const { agentName, teamLeadName } = getHolderInfo(phone.assigned_to)
+                          return (
+                            <div>
+                              <span className="text-brand-muted">{agentName}</span>
+                              {teamLeadName && (
+                                <p className="text-xs text-brand-muted/70 mt-0.5">Team: {teamLeadName}</p>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td className="px-5 py-4 text-brand-muted">{new Date(phone.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-4">
-                        <button
-                          onClick={() => { setEditingPhone(phone); setEditModel(phone.model) }}
-                          className="text-brand-muted hover:text-primary transition-colors"
-                          title="Edit model"
-                        >
-                          <MdEdit className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setEditingPhone(phone); setEditModel(phone.model) }}
+                            className="text-brand-muted hover:text-primary transition-colors"
+                            title="Edit model"
+                          >
+                            <MdEdit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingPhone(phone)}
+                            className="text-brand-muted hover:text-danger transition-colors"
+                            title="Delete phone"
+                          >
+                            <MdDelete className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -547,6 +575,47 @@ export default function AdminInventory() {
                 fullWidth
               >
                 Save Changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingPhone && (
+        <Modal isOpen onClose={() => setDeletingPhone(null)} title="Delete Phone">
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="font-semibold text-brand-text">{deletingPhone.model}</p>
+              {(deletingPhone.imei ?? deletingPhone.barcode) && (
+                <p className="text-xs font-mono text-brand-muted mt-0.5">
+                  {deletingPhone.imei ? `IMEI: ${deletingPhone.imei}` : `Barcode: ${deletingPhone.barcode}`}
+                </p>
+              )}
+              {deletingPhone.assigned_to && (
+                <p className="text-xs text-danger mt-1.5 font-medium">
+                  ⚠ This phone is currently assigned to {getHolderInfo(deletingPhone.assigned_to).agentName}.
+                </p>
+              )}
+            </div>
+            <p className="text-sm text-brand-muted">
+              This will permanently remove the phone from inventory. This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setDeletingPhone(null)} fullWidth>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!profile) return
+                  setDeleteLoading(true)
+                  const ok = await deletePhone(deletingPhone.id, profile)
+                  if (ok) { setDeletingPhone(null); invalidateInventory(queryClient) }
+                  setDeleteLoading(false)
+                }}
+                loading={deleteLoading}
+                fullWidth
+                className="bg-danger hover:bg-red-700 focus:ring-danger"
+              >
+                Delete Phone
               </Button>
             </div>
           </div>

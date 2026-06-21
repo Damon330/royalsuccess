@@ -113,6 +113,16 @@ export function useProfiles(options: { enabled?: boolean } = {}) {
           return next
         })
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'profiles' }, (payload) => {
+        const deletedId = (payload.old as { id?: string })?.id
+        if (deletedId) {
+          setProfiles((prev) => {
+            const next = prev.filter((p) => p.id !== deletedId)
+            setCache(next)
+            return next
+          })
+        }
+      })
       .subscribe()
 
     isFirstLoad.current = false
@@ -143,6 +153,54 @@ export function useProfiles(options: { enabled?: boolean } = {}) {
     }
   }
 
+  async function deleteProfile(userId: string): Promise<boolean> {
+    try {
+      const { error: rpcErr } = await withTimeout(
+        supabase.rpc('admin_delete_profile', { p_user_id: userId }),
+        MUTATE_TIMEOUT,
+      )
+
+      if (rpcErr) {
+        // RPC not deployed yet — fall back to sequential direct queries.
+        // Run supabase/admin-delete-profile.sql for the atomic version.
+        const isNotFound = rpcErr.code === '42883' || rpcErr.code === 'PGRST202'
+        if (!isNotFound) throw rpcErr
+
+        const { error: e1 } = await withTimeout(
+          supabase.from('phones')
+            .update({ status: 'in_stock', assigned_to: null, assigned_at: null })
+            .eq('assigned_to', userId),
+          MUTATE_TIMEOUT,
+        )
+        if (e1) throw e1
+
+        const { error: e2 } = await withTimeout(
+          supabase.from('profiles').update({ team_lead_id: null }).eq('team_lead_id', userId),
+          MUTATE_TIMEOUT,
+        )
+        if (e2) throw e2
+
+        const { error: e3 } = await withTimeout(
+          supabase.from('profiles').delete().eq('id', userId),
+          MUTATE_TIMEOUT,
+        )
+        if (e3) throw e3
+      }
+
+      setProfiles((prev) => {
+        const next = prev.filter((p) => p.id !== userId)
+        setCache(next)
+        return next
+      })
+      invalidateCache()
+      toast.success('User deleted.')
+      return true
+    } catch {
+      toast.error('Failed to delete user.')
+      return false
+    }
+  }
+
   async function updateRole(userId: string, role: Role, teamLeadId?: string | null) {
     try {
       const { error } = await withTimeout(
@@ -169,7 +227,7 @@ export function useProfiles(options: { enabled?: boolean } = {}) {
   return {
     profiles, teamLeads, agents, pendingUsers,
     loading, dbError, dbErrorMsg,
-    approveUser, updateRole,
+    approveUser, updateRole, deleteProfile,
     refetch: () => fetchProfiles(true),
   }
 }

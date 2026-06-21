@@ -419,6 +419,42 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     }
   }
 
+  // ── Delete phone ────────────────────────────────────────────
+  async function deletePhone(phoneId: string, actor: Profile): Promise<boolean> {
+    if (mutatingIds.current.has(phoneId)) return false
+    mutatingIds.current.add(phoneId)
+    const phone = phones.find((p) => p.id === phoneId)
+
+    setPhones((prev) => prev.filter((p) => p.id !== phoneId))
+
+    try {
+      const { error } = await withTimeout(
+        supabase.from('phones').delete().eq('id', phoneId),
+        MUTATE_TIMEOUT,
+      )
+      if (error) throw error
+
+      logActivity({
+        actor_id:     actor.id,
+        actor_name:   actor.full_name,
+        role:         actor.role,
+        action_type:  'STOCK_ADJUSTED',
+        entity_type:  'phone',
+        entity_id:    phoneId,
+        entity_label: phone?.model ?? phoneId,
+        meta:         { action: 'DELETED', model: phone?.model, imei: phone?.imei },
+      })
+      toast.success('Phone deleted from inventory.')
+      return true
+    } catch {
+      toast.error('Failed to delete phone.')
+      fetchPhones()
+      return false
+    } finally {
+      mutatingIds.current.delete(phoneId)
+    }
+  }
+
   // ── Update phone ────────────────────────────────────────────
   async function updatePhone(phoneId: string, updates: { model?: string }, actor: Profile): Promise<boolean> {
     try {
@@ -458,6 +494,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     assignPhones,
     unassignPhone,
     updatePhone,
+    deletePhone,
     importPhones,
     lookupByBarcode,
     refetch: fetchPhones,
