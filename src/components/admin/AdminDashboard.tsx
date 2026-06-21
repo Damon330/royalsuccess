@@ -1,7 +1,10 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../../hooks/useAuth'
+import { useStaleDeviceSettings } from '../../hooks/useStaleDeviceSettings'
+import { useRestrictedMode } from '../../hooks/useRestrictedMode'
 import Header from '../shared/Header'
 import StatCard from '../shared/StatCard'
 import Badge from '../shared/Badge'
@@ -14,11 +17,9 @@ import type { AdminDashboardStats } from '../../types'
 import {
   MdInventory2, MdStorefront, MdLocalShipping, MdCheckCircle,
   MdWarning, MdRefresh, MdUndo, MdBuildCircle, MdNotifications,
-  MdExpandMore, MdExpandLess, MdTrendingUp, MdPeople,
+  MdExpandMore, MdExpandLess, MdTrendingUp, MdPeople, MdSettings,
 } from 'react-icons/md'
 
-const AGENT_STALE_DAYS    = 3
-const TEAMLEAD_STALE_DAYS = 14
 const STALE_PAGE_SIZE     = 10
 const TEAM_PAGE_SIZE      = 15
 const DASHBOARD_STALE_MS  = 120_000
@@ -116,13 +117,13 @@ function RingMetric({ percent, color, label, value, total }: {
 // RPCs bypass RLS entirely (run as postgres), enforcing admin check inside the
 // function with is_admin(). This is immune to JWT email format differences.
 
-async function fetchDashboard(): Promise<DashboardData> {
+async function fetchDashboard(agentDays: number, teamLeadDays: number): Promise<DashboardData> {
   const [statsRes, teamRes, alertsRes] = await Promise.all([
     withTimeout(supabase.rpc('admin_dashboard_stats'), 45_000),
     withTimeout(supabase.rpc('admin_team_overview'), 45_000),
     withTimeout(supabase.rpc('admin_stale_alerts', {
-      p_agent_days:    AGENT_STALE_DAYS,
-      p_teamlead_days: TEAMLEAD_STALE_DAYS,
+      p_agent_days:    agentDays,
+      p_teamlead_days: teamLeadDays,
     }), 45_000),
   ])
 
@@ -156,6 +157,9 @@ async function fetchDashboard(): Promise<DashboardData> {
 
 export default function AdminDashboard() {
   const { profile } = useAuth()
+  const { settings: staleSettings } = useStaleDeviceSettings()
+  const restrictedMode = useRestrictedMode()
+  const navigate = useNavigate()
   const [alertsOpen,   setAlertsOpen]   = useState(true)
   const [alertsPage,   setAlertsPage]   = useState(1)
   const [teamPage,     setTeamPage]     = useState(1)
@@ -171,8 +175,8 @@ export default function AdminDashboard() {
     error:        dbErrorObj,
     refetch:      refetchAll,
   } = useQuery({
-    queryKey:   ['dashboard'],
-    queryFn:    fetchDashboard,
+    queryKey:   ['dashboard', staleSettings.agentDays, staleSettings.teamLeadDays],
+    queryFn:    () => fetchDashboard(staleSettings.agentDays, staleSettings.teamLeadDays),
     staleTime:  DASHBOARD_STALE_MS,
     // 3 total attempts (1 initial + 2 retries) with 5 s → 10 s backoff.
     // Covers the Supabase free-tier cold-start window (~20-30 s): first attempt
@@ -343,35 +347,52 @@ export default function AdminDashboard() {
         </div>
 
         {/* ── Stale Device Alerts ──────────────────────────────────────── */}
-        {(staleAlerts.length > 0 || isLoading) && (
-          <motion.div
+        <motion.div
             initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
             className="bg-brand-surface rounded-card border border-brand-border shadow-card overflow-hidden"
           >
-            <button
-              onClick={() => setAlertsOpen((v) => !v)}
-              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-brand-bg transition-colors"
-            >
-              <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-inner flex items-center justify-center flex-shrink-0">
-                <MdNotifications className="w-4 h-4 text-warning" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-bold text-brand-text">Stale Device Alerts</p>
-                <p className="text-xs text-brand-muted">
-                  Agents: &gt;{AGENT_STALE_DAYS}d · Team leads: &gt;{TEAMLEAD_STALE_DAYS}d without movement
-                </p>
-              </div>
-              {staleAlerts.length > 0 && (
-                <span className="bg-amber-500 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full tabular-nums">
-                  {staleAlerts.length}
-                </span>
+            <div className="flex items-center hover:bg-brand-bg transition-colors">
+              <button
+                onClick={() => setAlertsOpen((v) => !v)}
+                className="flex-1 min-w-0 px-6 py-4 flex items-center gap-3 text-left"
+              >
+                <div className="w-8 h-8 bg-amber-50 dark:bg-amber-900/20 rounded-inner flex items-center justify-center flex-shrink-0">
+                  <MdNotifications className="w-4 h-4 text-warning" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-brand-text">Stale Device Alerts</p>
+                  <p className="text-xs text-brand-muted truncate">
+                    Agents: &gt;{staleSettings.agentDays}d · Team leads: &gt;{staleSettings.teamLeadDays}d without movement
+                  </p>
+                </div>
+                {staleAlerts.length > 0 && (
+                  <span className="bg-amber-500 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full tabular-nums">
+                    {staleAlerts.length}
+                  </span>
+                )}
+                {isFetching && !isLoading && <Spinner size="sm" />}
+              </button>
+              {restrictedMode.isModuleAllowed('settings') && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/admin/settings')}
+                  className="w-9 h-9 rounded-inner flex items-center justify-center text-brand-muted hover:text-primary hover:bg-primary/8 transition-colors"
+                  title="Device alert settings"
+                  aria-label="Open device alert settings"
+                >
+                  <MdSettings className="w-4 h-4" />
+                </button>
               )}
-              {isFetching && !isLoading && <Spinner size="sm" />}
-              <div className="text-brand-muted ml-1">
+              <button
+                type="button"
+                onClick={() => setAlertsOpen((v) => !v)}
+                className="w-10 h-10 mr-3 rounded-inner flex items-center justify-center text-brand-muted hover:text-brand-text transition-colors"
+                aria-label={alertsOpen ? 'Collapse stale device alerts' : 'Expand stale device alerts'}
+              >
                 {alertsOpen ? <MdExpandLess className="w-5 h-5" /> : <MdExpandMore className="w-5 h-5" />}
-              </div>
-            </button>
+              </button>
+            </div>
 
             {alertsOpen && (
               <div className="border-t border-brand-border">
@@ -429,8 +450,7 @@ export default function AdminDashboard() {
                 )}
               </div>
             )}
-          </motion.div>
-        )}
+        </motion.div>
 
         {/* ── Team Overview ─────────────────────────────────────────────── */}
         <motion.div

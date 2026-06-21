@@ -72,6 +72,32 @@ COMMENT ON FUNCTION public.is_admin() IS
   'Returns true if the current request comes from the admin account. '
   'Stable (cached per statement). Safe to use in RLS USING clauses.';
 
+-- Shared operational thresholds used by admin, team-lead, and agent views.
+CREATE TABLE IF NOT EXISTS public.stale_device_settings (
+  id             text        PRIMARY KEY DEFAULT 'default' CHECK (id = 'default'),
+  agent_days     integer     NOT NULL DEFAULT 3  CHECK (agent_days BETWEEN 1 AND 90),
+  team_lead_days integer     NOT NULL DEFAULT 14 CHECK (team_lead_days BETWEEN 1 AND 90),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  updated_by     uuid        REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
+INSERT INTO public.stale_device_settings (id, agent_days, team_lead_days)
+VALUES ('default', 3, 14)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.stale_device_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "stale_settings_read" ON public.stale_device_settings;
+DROP POLICY IF EXISTS "stale_settings_admin_insert" ON public.stale_device_settings;
+DROP POLICY IF EXISTS "stale_settings_admin_update" ON public.stale_device_settings;
+CREATE POLICY "stale_settings_read" ON public.stale_device_settings
+  FOR SELECT TO authenticated USING (true);
+CREATE POLICY "stale_settings_admin_insert" ON public.stale_device_settings
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+CREATE POLICY "stale_settings_admin_update" ON public.stale_device_settings
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+GRANT SELECT ON public.stale_device_settings TO authenticated;
+GRANT INSERT, UPDATE ON public.stale_device_settings TO authenticated;
+
 
 -- ============================================================
 -- SECTION 3 — FIX CRITICAL SECURITY ISSUE
@@ -570,11 +596,21 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 DECLARE
-  v_result jsonb;
+  v_result         jsonb;
+  v_agent_days     integer := 3;
+  v_team_lead_days integer := 14;
 BEGIN
   IF NOT is_admin() THEN
     RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
   END IF;
+
+  SELECT agent_days, team_lead_days
+  INTO v_agent_days, v_team_lead_days
+  FROM stale_device_settings
+  WHERE id = 'default';
+
+  v_agent_days := COALESCE(v_agent_days, 3);
+  v_team_lead_days := COALESCE(v_team_lead_days, 14);
 
   SELECT jsonb_agg(row_to_json(t)) INTO v_result
   FROM (
@@ -589,13 +625,13 @@ BEGIN
       COUNT(ph.id)                                                          AS assigned_count,
       COUNT(ph.id) FILTER (WHERE ph.status = 'sold')                       AS sold_count,
       COUNT(ph.id) FILTER (WHERE ph.status = 'assigned')                   AS active_count,
-      -- Stale phones: assigned > 3 days for agent, > 14 days for team_lead
+      -- Stale phones use the shared operational thresholds.
       COUNT(ph.id) FILTER (
         WHERE ph.status = 'assigned'
         AND ph.assigned_at IS NOT NULL
         AND (
-          (p.role = 'agent'     AND ph.assigned_at < NOW() - INTERVAL '3 days')
-          OR (p.role = 'team_lead' AND ph.assigned_at < NOW() - INTERVAL '14 days')
+          (p.role = 'agent' AND ph.assigned_at < NOW() - (v_agent_days || ' days')::interval)
+          OR (p.role = 'team_lead' AND ph.assigned_at < NOW() - (v_team_lead_days || ' days')::interval)
         )
       ) AS stale_phone_count,
       -- Most stale phone details

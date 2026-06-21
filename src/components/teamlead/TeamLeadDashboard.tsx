@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
 import { useReturns } from '../../hooks/useReturns'
 import { useSaleReceipt } from '../../hooks/useSaleReceipt'
+import { useStaleDeviceSettings } from '../../hooks/useStaleDeviceSettings'
 import SaleConfirmationModal from '../shared/SaleConfirmationModal'
 import ReceiptSuccessScreen from '../shared/ReceiptSuccessScreen'
 import NotificationBell from '../shared/NotificationBell'
@@ -16,8 +17,6 @@ import {
   MdPhoneAndroid, MdLogout, MdWarning, MdUndo, MdCheckCircle,
   MdCancel, MdSell, MdAccessTime,
 } from 'react-icons/md'
-
-const TL_STALE_DAYS = 14
 
 function daysHeld(phone: Phone): number {
   if (!phone.assigned_at) return 0
@@ -135,6 +134,7 @@ export default function TeamLeadDashboard() {
   const { phones: myPhones, loading: phonesLoading, dbError } = usePhones(profile?.id)
   const { returns, approveReturn, rejectReturn, submitReturn } = useReturns()
   const { completeSale, loading: saleLoading } = useSaleReceipt()
+  const { settings: staleSettings } = useStaleDeviceSettings()
 
   const [sellingPhone,   setSellingPhone]   = useState<Phone | null>(null)
   const [returningPhone, setReturningPhone] = useState<Phone | null>(null)
@@ -145,7 +145,7 @@ export default function TeamLeadDashboard() {
   const pendingReturns = returns.filter((r) => r.return_status === 'PENDING')
   const mySold         = myPhones.filter((p) => p.status === 'sold').length
   const myActive       = myPhones.filter((p) => p.status === 'assigned')
-  const staleCount     = myActive.filter((p) => daysHeld(p) > TL_STALE_DAYS).length
+  const staleCount     = myActive.filter((p) => daysHeld(p) > staleSettings.teamLeadDays).length
 
   const initials = (profile?.full_name ?? 'T')
     .split(' ')
@@ -317,8 +317,9 @@ export default function TeamLeadDashboard() {
           ) : (
             <div className="space-y-2.5">
               {myPhones.map((phone) => {
-                const days  = Math.floor(daysHeld(phone))
-                const stale = phone.status === 'assigned' && days > TL_STALE_DAYS
+                const heldDays = daysHeld(phone)
+                const days  = Math.floor(heldDays)
+                const stale = phone.status === 'assigned' && heldDays > staleSettings.teamLeadDays
 
                 return (
                   <div
@@ -335,7 +336,7 @@ export default function TeamLeadDashboard() {
                       <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-50 border-b border-orange-100">
                         <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse flex-shrink-0" />
                         <MdAccessTime className="w-3 h-3 text-orange-500 flex-shrink-0" />
-                        <p className="text-[11px] font-semibold text-orange-700">Overdue — {days}d (limit: {TL_STALE_DAYS}d)</p>
+                        <p className="text-[11px] font-semibold text-orange-700">Overdue — {days}d (limit: {staleSettings.teamLeadDays}d)</p>
                       </div>
                     )}
 

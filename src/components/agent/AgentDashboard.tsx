@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
 import { useReturns } from '../../hooks/useReturns'
 import { useSaleReceipt } from '../../hooks/useSaleReceipt'
+import { useStaleDeviceSettings } from '../../hooks/useStaleDeviceSettings'
 import SaleConfirmationModal from '../shared/SaleConfirmationModal'
 import ReceiptSuccessScreen from '../shared/ReceiptSuccessScreen'
 import NotificationBell from '../shared/NotificationBell'
@@ -24,15 +25,13 @@ const STOCK_RETURN_REASONS = [
   'Other',
 ] as const
 
-const AGENT_STALE_DAYS = 3
-
 function daysHeld(phone: Phone): number {
   if (!phone.assigned_at) return 0
   return (Date.now() - new Date(phone.assigned_at).getTime()) / 86_400_000
 }
 
-function isStale(phone: Phone): boolean {
-  return phone.status === 'assigned' && daysHeld(phone) > AGENT_STALE_DAYS
+function isStale(phone: Phone, staleDays: number): boolean {
+  return phone.status === 'assigned' && daysHeld(phone) > staleDays
 }
 
 type ReturnTarget = 'team_lead' | 'store'
@@ -169,16 +168,17 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
   )
 }
 
-function PhoneCard({ phone, hasTeamLead, onSell, onReturn }: {
+function PhoneCard({ phone, hasTeamLead, staleDays, onSell, onReturn }: {
   phone:       Phone
   hasTeamLead: boolean
+  staleDays:   number
   onSell:      (p: Phone) => void
   onReturn:    (p: Phone) => void
 }) {
   const isAssigned = phone.status === 'assigned'
   const isSold     = phone.status === 'sold'
   const isReturned = phone.status === 'returned'
-  const stale      = isAssigned && isStale(phone)
+  const stale      = isAssigned && isStale(phone, staleDays)
   const days       = Math.floor(daysHeld(phone))
 
   const accentBorder = isSold
@@ -214,7 +214,7 @@ function PhoneCard({ phone, hasTeamLead, onSell, onReturn }: {
           <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse flex-shrink-0" />
           <MdAccessTime className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
           <p className="text-xs font-semibold text-orange-700">
-            Overdue — {days}d in field (limit: {AGENT_STALE_DAYS}d)
+            Overdue — {days}d in field (limit: {staleDays}d)
             {hasTeamLead && ' · Return to team lead or store'}
           </p>
         </div>
@@ -297,6 +297,7 @@ export default function AgentDashboard() {
   const { phones, loading, returnToTeamLead } = usePhones(profile?.id)
   const { submitReturn } = useReturns()
   const { completeSale, loading: saleLoading } = useSaleReceipt()
+  const { settings: staleSettings } = useStaleDeviceSettings()
 
   const [sellingPhone,   setSellingPhone]   = useState<Phone | null>(null)
   const [returningPhone, setReturningPhone] = useState<Phone | null>(null)
@@ -306,7 +307,7 @@ export default function AgentDashboard() {
   const assigned    = phones.filter((p) => p.status === 'assigned')
   const inReturn    = phones.filter((p) => p.status === 'returned')
   const sold        = phones.filter((p) => p.status === 'sold')
-  const staleCount  = assigned.filter(isStale).length
+  const staleCount  = assigned.filter((phone) => isStale(phone, staleSettings.agentDays)).length
 
   const initials = (profile?.full_name ?? 'A')
     .split(' ')
@@ -414,7 +415,7 @@ export default function AgentDashboard() {
                     {staleCount} phone{staleCount !== 1 ? 's' : ''} overdue
                   </p>
                   <p className="text-xs text-orange-700 mt-0.5">
-                    Phones held over {AGENT_STALE_DAYS} days should be returned
+                    Phones held over {staleSettings.agentDays} days should be returned
                     {hasTeamLead ? ' to your team lead or the store.' : ' to store.'}
                   </p>
                 </div>
@@ -433,6 +434,7 @@ export default function AgentDashboard() {
                       key={phone.id}
                       phone={phone}
                       hasTeamLead={hasTeamLead}
+                      staleDays={staleSettings.agentDays}
                       onSell={setSellingPhone}
                       onReturn={setReturningPhone}
                     />
@@ -453,6 +455,7 @@ export default function AgentDashboard() {
                       key={phone.id}
                       phone={phone}
                       hasTeamLead={hasTeamLead}
+                      staleDays={staleSettings.agentDays}
                       onSell={setSellingPhone}
                       onReturn={setReturningPhone}
                     />
@@ -473,6 +476,7 @@ export default function AgentDashboard() {
                       key={phone.id}
                       phone={phone}
                       hasTeamLead={hasTeamLead}
+                      staleDays={staleSettings.agentDays}
                       onSell={setSellingPhone}
                       onReturn={setReturningPhone}
                     />

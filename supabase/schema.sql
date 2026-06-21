@@ -23,6 +23,18 @@ create table public.profiles (
   created_at    timestamptz not null default now()
 );
 
+create table public.stale_device_settings (
+  id             text primary key default 'default' check (id = 'default'),
+  agent_days     integer not null default 3 check (agent_days between 1 and 90),
+  team_lead_days integer not null default 14 check (team_lead_days between 1 and 90),
+  updated_at     timestamptz not null default now(),
+  updated_by     uuid references public.profiles(id) on delete set null
+);
+
+insert into public.stale_device_settings (id, agent_days, team_lead_days)
+values ('default', 3, 14)
+on conflict (id) do nothing;
+
 -- ── Phones ────────────────────────────────────────────────────
 create table public.phones (
   id             uuid primary key default uuid_generate_v4(),
@@ -94,6 +106,7 @@ alter publication supabase_realtime add table public.phones;
 
 -- ── Row Level Security ─────────────────────────────────────────
 alter table public.profiles     enable row level security;
+alter table public.stale_device_settings enable row level security;
 alter table public.phones       enable row level security;
 alter table public.activity_log enable row level security;
 
@@ -141,6 +154,28 @@ create policy "profiles_self_update"
   on public.profiles for update
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+create policy "stale_settings_read"
+  on public.stale_device_settings for select to authenticated
+  using (true);
+
+create policy "stale_settings_admin_insert"
+  on public.stale_device_settings for insert to authenticated
+  with check (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+create policy "stale_settings_admin_update"
+  on public.stale_device_settings for update to authenticated
+  using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  )
+  with check (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
+grant select on public.stale_device_settings to authenticated;
+grant insert, update on public.stale_device_settings to authenticated;
 
 -- ┌──────────────────────────────────────────────────────────────┐
 -- │  PHONES policies                                             │
