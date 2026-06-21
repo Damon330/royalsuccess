@@ -177,7 +177,7 @@ export default function LoginPage() {
     setLoading(false)
 
     if (error) {
-      toast.error(lookupError ? 'Email or password is incorrect.' : 'Password is incorrect.')
+      toast.error('Email or password is incorrect.')
       setSignupHint(lookupError ? 'generic' : null)
       recordAttempt(true)
     } else {

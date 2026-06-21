@@ -492,7 +492,6 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
     addPhone,
     addPhonesBulk,
     assignPhones,
-    unassignPhone,
     updatePhone,
     deletePhone,
     importPhones,

@@ -61,7 +61,7 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
         ...returnRows.map((r) => r.approved_by).filter(Boolean),
       ])] as string[]
 
-      const [phonesResult, profilesResult] = await Promise.all([
+      const [phonesSettled, profilesSettled] = await Promise.allSettled([
         phoneIds.length > 0
           ? withTimeout(supabase.from('phones').select('id,model,imei,barcode,serial_number').in('id', phoneIds), QUERY_TIMEOUT)
           : Promise.resolve({ data: [] as { id: string; model: string; imei: string | null; barcode: string | null; serial_number: string }[], error: null }),
@@ -70,8 +70,8 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
           : Promise.resolve({ data: [] as { id: string; full_name: string; role: string }[], error: null }),
       ])
 
-      const phones   = phonesResult.data   ?? []
-      const profiles = profilesResult.data ?? []
+      const phones   = phonesSettled.status   === 'fulfilled' ? (phonesSettled.value.data   ?? []) : []
+      const profiles = profilesSettled.status === 'fulfilled' ? (profilesSettled.value.data ?? []) : []
 
       const phoneMap   = Object.fromEntries(phones.map((p) => [p.id, p]))
       const profileMap = Object.fromEntries(profiles.map((p) => [p.id, p]))

@@ -13,7 +13,7 @@ export default function ResetPasswordPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (password.length < 6) { toast.error('Password must be at least 6 characters.'); return }
+    if (password.length < 8) { toast.error('Password must be at least 8 characters.'); return }
     if (password !== confirmPassword) { toast.error('Passwords do not match.'); return }
 
     setLoading(true)
@@ -49,7 +49,7 @@ export default function ResetPasswordPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 6 characters"
+                placeholder="Min. 8 characters"
                 className="w-full border border-brand-border rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>

@@ -1,6 +1,22 @@
 -- ============================================================
--- Royal Success — Supabase PostgreSQL Schema
--- Run this in the Supabase SQL Editor (Dashboard → SQL Editor)
+-- Royal Success — Supabase PostgreSQL Schema (INITIAL SETUP ONLY)
+--
+-- ⚠️  WARNING: This file reflects the INITIAL schema only.
+--     The live database has been extended with additional tables,
+--     columns, enums, RPCs, and RLS policies via incremental SQL
+--     files in this supabase/ directory. Do NOT run this file
+--     against an existing database — it will error on duplicate
+--     objects. Use the individual migration files instead:
+--
+--       auth-flow-remap.sql        — phone capture + auth_email_exists RPC
+--       admin-delete-profile.sql   — atomic profile deletion RPC
+--       enable-profiles-realtime.sql — profiles realtime publication
+--
+--     The actual live schema includes additional tables:
+--       sales, receipts, notifications, returns, activity_log (evolved),
+--       stale_device_settings, plus phone_status enums for 'returned'
+--       and 'damaged', barcode/imei columns on phones, and many RPCs
+--       (admin_get_phones, admin_get_profiles, notify_on_sale, is_admin, etc.)
 -- ============================================================
 
 -- ── Extensions ────────────────────────────────────────────────

@@ -37,9 +37,14 @@ export function useNotifications(userId: string | undefined) {
       }
       setHasMore(rows.length === PAGE_SIZE)
       offsetRef.current += rows.length
-      setUnreadCount(
-        (reset ? rows : [...notifications, ...rows]).filter((n) => !n.read).length,
-      )
+      const newUnread = rows.filter((n) => !n.read).length
+      // Functional update avoids stale-closure issues when loading additional pages:
+      // on reset we count only the incoming page; on load-more we add to existing count.
+      if (reset) {
+        setUnreadCount(newUnread)
+      } else {
+        setUnreadCount((prev) => prev + newUnread)
+      }
     } catch {
       // silent — non-critical feature
     } finally {
