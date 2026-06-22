@@ -1,22 +1,73 @@
 -- ============================================================
--- Royal Success — Fix stale device settings save
+-- Royal Success — Fix stale device settings (all-in-one)
 --
--- ROOT CAUSE:
---   stale_device_settings INSERT/UPDATE policies use only
---   is_admin(), so the admin account can't save if is_admin()
---   returns false (before fix-is-admin.sql is run).
+-- Fixes:
+--   1. "permission denied for schema public" — grants schema
+--      access before creating any objects.
+--   2. Creates stale_device_settings table if it doesn't exist.
+--   3. Creates upsert_stale_device_settings() SECURITY DEFINER
+--      RPC so the Save button bypasses RLS entirely.
+--   4. Updates INSERT/UPDATE policies to use dual-check
+--      (is_admin OR profiles.role=admin).
 --
--- FIX:
---   1. Create upsert_stale_device_settings() SECURITY DEFINER
---      RPC — bypasses RLS, checks admin via dual method.
---   2. Patch the SELECT / INSERT / UPDATE policies to use
---      dual-check (is_admin OR profiles.role=admin) so direct
---      table access also works after fix-is-admin.sql runs.
---
+-- Run in: Supabase Dashboard → SQL Editor → New Query → Run
 -- Safe to re-run.
 -- ============================================================
 
--- ── 1. SECURITY DEFINER RPC (preferred code path) ──────────
+-- ── 0. Fix schema permissions (required in newer Supabase projects) ──
+GRANT USAGE, CREATE ON SCHEMA public TO postgres;
+GRANT USAGE, CREATE ON SCHEMA public TO authenticated;
+GRANT USAGE, CREATE ON SCHEMA public TO anon;
+GRANT USAGE, CREATE ON SCHEMA public TO service_role;
+
+-- ── 1. Create table if it doesn't exist ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.stale_device_settings (
+  id             text        PRIMARY KEY DEFAULT 'default' CHECK (id = 'default'),
+  agent_days     integer     NOT NULL DEFAULT 3  CHECK (agent_days BETWEEN 1 AND 90),
+  team_lead_days integer     NOT NULL DEFAULT 14 CHECK (team_lead_days BETWEEN 1 AND 90),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  updated_by     uuid        REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
+-- Insert default row if none exists
+INSERT INTO public.stale_device_settings (id, agent_days, team_lead_days)
+VALUES ('default', 3, 14)
+ON CONFLICT (id) DO NOTHING;
+
+-- ── 2. Enable RLS and fix policies with dual-check ─────────────────
+
+ALTER TABLE public.stale_device_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "stale_settings_read"         ON public.stale_device_settings;
+DROP POLICY IF EXISTS "stale_settings_admin_insert" ON public.stale_device_settings;
+DROP POLICY IF EXISTS "stale_settings_admin_update" ON public.stale_device_settings;
+
+-- Any authenticated user can read (non-sensitive config)
+CREATE POLICY "stale_settings_read" ON public.stale_device_settings
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "stale_settings_admin_insert" ON public.stale_device_settings
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    is_admin()
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+CREATE POLICY "stale_settings_admin_update" ON public.stale_device_settings
+  FOR UPDATE TO authenticated
+  USING (
+    is_admin()
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  )
+  WITH CHECK (
+    is_admin()
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+GRANT SELECT, INSERT, UPDATE ON public.stale_device_settings TO authenticated;
+
+-- ── 3. Create SECURITY DEFINER RPC (bypasses RLS for the save) ─────
 
 CREATE OR REPLACE FUNCTION public.upsert_stale_device_settings(
   p_agent_days     integer,
@@ -59,38 +110,11 @@ $$;
 REVOKE ALL   ON FUNCTION public.upsert_stale_device_settings(integer, integer) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.upsert_stale_device_settings(integer, integer) TO authenticated;
 
--- ── 2. Patch RLS policies with dual-check ──────────────────
--- (belt-and-suspenders for any direct table access)
-
-DROP POLICY IF EXISTS "stale_settings_read"          ON public.stale_device_settings;
-DROP POLICY IF EXISTS "stale_settings_admin_insert"  ON public.stale_device_settings;
-DROP POLICY IF EXISTS "stale_settings_admin_update"  ON public.stale_device_settings;
-
--- Any authenticated user can read (it is non-sensitive config)
-CREATE POLICY "stale_settings_read" ON public.stale_device_settings
-  FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "stale_settings_admin_insert" ON public.stale_device_settings
-  FOR INSERT TO authenticated
-  WITH CHECK (
-    is_admin()
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
-CREATE POLICY "stale_settings_admin_update" ON public.stale_device_settings
-  FOR UPDATE TO authenticated
-  USING (
-    is_admin()
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  )
-  WITH CHECK (
-    is_admin()
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- ── 3. Ensure default row exists ───────────────────────────
-INSERT INTO public.stale_device_settings (id, agent_days, team_lead_days)
-VALUES ('default', 3, 14)
-ON CONFLICT (id) DO NOTHING;
-
-SELECT 'upsert_stale_device_settings RPC created OK' AS result;
+-- ── 4. Verification ────────────────────────────────────────────────
+SELECT
+  id,
+  agent_days,
+  team_lead_days,
+  'table OK' AS status
+FROM public.stale_device_settings
+WHERE id = 'default';
