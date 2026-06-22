@@ -43,14 +43,11 @@ export function useStaleDeviceSettings() {
   })
 
   const mutation = useMutation({
-    mutationFn: async ({ settings, userId }: { settings: StaleDeviceSettings; userId: string }) => {
+    mutationFn: async ({ settings }: { settings: StaleDeviceSettings; userId: string }) => {
       const { error } = await withTimeout(
-        supabase.from('stale_device_settings').upsert({
-          id: 'default',
-          agent_days: settings.agentDays,
-          team_lead_days: settings.teamLeadDays,
-          updated_at: new Date().toISOString(),
-          updated_by: userId,
+        supabase.rpc('upsert_stale_device_settings', {
+          p_agent_days:     settings.agentDays,
+          p_team_lead_days: settings.teamLeadDays,
         }),
         15_000,
       )

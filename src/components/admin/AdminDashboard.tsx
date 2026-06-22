@@ -178,11 +178,11 @@ export default function AdminDashboard() {
     queryKey:   ['dashboard', staleSettings.agentDays, staleSettings.teamLeadDays],
     queryFn:    () => fetchDashboard(staleSettings.agentDays, staleSettings.teamLeadDays),
     staleTime:  DASHBOARD_STALE_MS,
-    // 3 total attempts (1 initial + 2 retries) with 5 s → 10 s backoff.
-    // Covers the Supabase free-tier cold-start window (~20-30 s): first attempt
-    // times out while DB wakes, second attempt succeeds in < 1 s.
-    retry:      2,
-    retryDelay: (attempt) => Math.min(5_000 * (attempt + 1), 10_000),
+    // 2 total attempts (1 initial + 1 retry) with 2 s backoff.
+    // 15 s timeout + 2 s delay + 15 s timeout = 32 s max before error.
+    // Covers the Supabase free-tier cold-start window (~20-30 s).
+    retry:      1,
+    retryDelay: 2_000,
   })
 
   // Track how long the current fetch (initial or retry) is taking

@@ -8,6 +8,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { queryClient } from './lib/queryClient'
 import { initWebVitals, initGlobalErrorCapture } from './lib/telemetry'
+import UpdatePrompt from './components/shared/UpdatePrompt'
 import './index.css'
 
 const ReactQueryDevtools = import.meta.env.DEV
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ThemeProvider>
           <AuthProvider>
             <App />
+            <UpdatePrompt />
             <Toaster
               position="top-right"
               toastOptions={{
