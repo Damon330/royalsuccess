@@ -59,8 +59,11 @@ const ACTION_LABELS: Record<ActivityActionType, string> = {
   STOCK_ADJUSTED:    'Stock Adjusted',
   USER_CREATED:      'User Created',
   USER_DEACTIVATED:  'User Deactivated',
-  RECEIPT_GENERATED: 'Receipt Generated',
-  SCAN_EVENT:        'Scan Event',
+  RECEIPT_GENERATED:    'Receipt Generated',
+  SCAN_EVENT:           'Scan Event',
+  PAYROLL_CONFIG_SAVED:   'Payroll Config Saved',
+  PAYROLL_CONFIG_DELETED: 'Payroll Config Deleted',
+  PAYROLL_RUN_GENERATED:  'Payroll Run Generated',
 }
 
 function describeEntry(entry: ActivityLogEntry): string {

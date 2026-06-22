@@ -25,8 +25,11 @@ const ACTION_CONFIG: Record<ActivityActionType, {
   STOCK_ADJUSTED:    { icon: TbAdjustments,   dot: 'bg-blue-400',   bg: 'bg-blue-400/15',   label: 'Stock Adjusted'    },
   USER_CREATED:      { icon: TbUserPlus,      dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'User Created'   },
   USER_DEACTIVATED:  { icon: TbUserOff,       dot: 'bg-gray-400',   bg: 'bg-brand-bg',   label: 'User Deactivated'  },
-  RECEIPT_GENERATED: { icon: TbReceipt,       dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'Receipt Generated' },
-  SCAN_EVENT:        { icon: TbScan,          dot: 'bg-gray-400',   bg: 'bg-brand-bg',   label: 'Scan Event'        },
+  RECEIPT_GENERATED:    { icon: TbReceipt,    dot: 'bg-primary',    bg: 'bg-primary/10 dark:bg-primary/20', label: 'Receipt Generated'    },
+  SCAN_EVENT:           { icon: TbScan,       dot: 'bg-gray-400',   bg: 'bg-brand-bg',   label: 'Scan Event'           },
+  PAYROLL_CONFIG_SAVED:   { icon: TbAdjustments, dot: 'bg-purple-400', bg: 'bg-purple-400/15', label: 'Payroll Config Saved'   },
+  PAYROLL_CONFIG_DELETED: { icon: TbAdjustments, dot: 'bg-red-400',    bg: 'bg-red-400/15',    label: 'Payroll Config Deleted' },
+  PAYROLL_RUN_GENERATED:  { icon: TbAdjustments, dot: 'bg-green-400',  bg: 'bg-green-400/15',  label: 'Payroll Run Generated'  },
 }
 
 const ROLE_BADGE: Record<string, string> = {

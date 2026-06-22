@@ -15,6 +15,9 @@ export type ActivityActionType =
   | 'USER_DEACTIVATED'
   | 'RECEIPT_GENERATED'
   | 'SCAN_EVENT'
+  | 'PAYROLL_CONFIG_SAVED'
+  | 'PAYROLL_CONFIG_DELETED'
+  | 'PAYROLL_RUN_GENERATED'
 
 export interface Profile {
   id:           string

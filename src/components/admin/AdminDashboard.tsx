@@ -119,12 +119,12 @@ function RingMetric({ percent, color, label, value, total }: {
 
 async function fetchDashboard(agentDays: number, teamLeadDays: number): Promise<DashboardData> {
   const [statsRes, teamRes, alertsRes] = await Promise.all([
-    withTimeout(supabase.rpc('admin_dashboard_stats'), 45_000),
-    withTimeout(supabase.rpc('admin_team_overview'), 45_000),
+    withTimeout(supabase.rpc('admin_dashboard_stats'), 15_000),
+    withTimeout(supabase.rpc('admin_team_overview'), 15_000),
     withTimeout(supabase.rpc('admin_stale_alerts', {
       p_agent_days:    agentDays,
       p_teamlead_days: teamLeadDays,
-    }), 45_000),
+    }), 15_000),
   ])
 
   if (statsRes.error)  throw new Error(statsRes.error.message)
