@@ -63,39 +63,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const PROFILE_TIMEOUT = 8_000
 
   async function loadProfile(userId: string, email?: string | null): Promise<Profile | null> {
-    const isAdmin = email?.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
+    const emailIsAdmin = !!email && email.toLowerCase() === ADMIN_EMAIL?.toLowerCase()
 
-    if (isAdmin) {
+    // Always fetch the DB profile first — it is the authoritative source for role.
+    // The old design checked email first and took a completely different code path,
+    // meaning a VITE_ADMIN_EMAIL mismatch (changed email, typo, env var lag) would
+    // silently fall through and treat an admin account as a regular user.
+    let existing: Profile | null = null
+    let fetchFailed = false
+    try {
+      const { data } = await withTimeout(
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        PROFILE_TIMEOUT,
+      )
+      existing = data ?? null
+    } catch {
+      fetchFailed = true
+    }
+
+    // Admin = email matches VITE_ADMIN_EMAIL  OR  DB already has role='admin'.
+    // Either signal is sufficient — no single point of failure.
+    const isAdmin = emailIsAdmin || existing?.role === 'admin'
+
+    if (!isAdmin) {
+      return existing
+    }
+
+    // ── Admin path ────────────────────────────────────────────────────────────
+
+    if (fetchFailed) {
+      // DB unreachable — return a synthetic profile so the admin can still log in.
+      return {
+        id: userId, full_name: 'Admin', phone_number: null,
+        role: 'admin' as const, team_lead_id: null,
+        status: 'active' as const, created_at: new Date().toISOString(),
+      }
+    }
+
+    if (!existing) {
+      // No profile row yet (first login before trigger fires) — create it.
       try {
-        const { data: existing } = await withTimeout(
+        await withTimeout(
+          supabase.from('profiles').insert({
+            id: userId, full_name: 'Admin', role: 'admin', status: 'active',
+          }),
+          PROFILE_TIMEOUT,
+        )
+        const { data: fresh } = await withTimeout(
           supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
           PROFILE_TIMEOUT,
         )
-        if (!existing) {
-          await withTimeout(
-            supabase.from('profiles').insert({
-              id: userId, full_name: 'Admin', role: 'admin', status: 'active',
-            }),
-            PROFILE_TIMEOUT,
-          )
-          const { data: fresh } = await withTimeout(
-            supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-            PROFILE_TIMEOUT,
-          )
-          return fresh ?? {
-            id: userId, full_name: 'Admin', phone_number: null,
-            role: 'admin'  as const, team_lead_id: null,
-            status: 'active' as const, created_at: new Date().toISOString(),
-          }
-        } else {
-          if (existing.role !== 'admin' || existing.status !== 'active') {
-            await withTimeout(
-              supabase.from('profiles')
-                .update({ role: 'admin', status: 'active' }).eq('id', userId),
-              PROFILE_TIMEOUT,
-            )
-          }
-          return { ...existing, role: 'admin' as const, status: 'active' as const }
+        return fresh ?? {
+          id: userId, full_name: 'Admin', phone_number: null,
+          role: 'admin' as const, team_lead_id: null,
+          status: 'active' as const, created_at: new Date().toISOString(),
         }
       } catch {
         return {
@@ -106,15 +127,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    try {
-      const { data } = await withTimeout(
-        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        PROFILE_TIMEOUT,
-      )
-      return data ?? null
-    } catch {
-      return null
+    // Profile exists — self-heal if role/status drifted (e.g. trigger reset it).
+    if (existing.role !== 'admin' || existing.status !== 'active') {
+      try {
+        await withTimeout(
+          supabase.from('profiles').update({ role: 'admin', status: 'active' }).eq('id', userId),
+          PROFILE_TIMEOUT,
+        )
+      } catch { /* non-fatal — return correct values anyway */ }
     }
+
+    return { ...existing, role: 'admin' as const, status: 'active' as const }
   }
 
   async function refreshProfile() {
