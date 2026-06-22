@@ -242,6 +242,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Own-profile realtime ─────────────────────────────────────────────────
+  // Watches the current user's OWN profile row for updates.
+  // When an admin approves a pending agent, this subscription fires and updates
+  // the local profile state — App.tsx re-evaluates routing and the agent moves
+  // from PendingPage to their dashboard without a manual refresh.
+  useEffect(() => {
+    if (!session?.user?.id) return
+    const userId = session.user.id
+    const ch = supabase
+      .channel(`own-profile-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => {
+          setProfile((prev) =>
+            prev ? { ...prev, ...(payload.new as Profile) } : (payload.new as Profile),
+          )
+        },
+      )
+      .subscribe()
+    return () => {
+      ch.unsubscribe()
+      supabase.removeChannel(ch)
+    }
+  }, [session?.user?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Actions ───────────────────────────────────────────────────────────────
 
   function clearPasswordRecovery() {

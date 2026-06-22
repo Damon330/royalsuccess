@@ -6,7 +6,7 @@ import { logDbError } from '../lib/errorLog'
 import type { Profile, Role } from '../types'
 import toast from 'react-hot-toast'
 
-const QUERY_TIMEOUT  = 30_000
+const QUERY_TIMEOUT  = 12_000
 const MUTATE_TIMEOUT = 12000
 const CACHE_TTL_MS   = 5 * 60 * 1000  // 5 minutes
 
@@ -135,20 +135,23 @@ export function useProfiles(options: { enabled?: boolean } = {}) {
   }, [enabled, fetchProfiles])
 
   async function approveUser(userId: string, role: Role, teamLeadId?: string) {
-    const update: Partial<Profile> = { status: 'active', role }
-    if (teamLeadId) update.team_lead_id = teamLeadId
     try {
       const { error } = await withTimeout(
-        supabase.from('profiles').update(update).eq('id', userId),
+        supabase.rpc('admin_update_profile', {
+          p_user_id:      userId,
+          p_role:         role,
+          p_team_lead_id: teamLeadId ?? null,
+          p_status:       'active',
+        }),
         MUTATE_TIMEOUT,
       )
       if (error) { toast.error(`Failed: ${error.message}`); return false }
       toast.success('User approved.')
       invalidateCache()
-      await fetchProfiles(true)
+      fetchProfiles(true)
       return true
     } catch {
-      toast.error('Database connection failed.')
+      toast.error('Approval failed — check connection.')
       return false
     }
   }
@@ -204,15 +207,18 @@ export function useProfiles(options: { enabled?: boolean } = {}) {
   async function updateRole(userId: string, role: Role, teamLeadId?: string | null) {
     try {
       const { error } = await withTimeout(
-        supabase.from('profiles')
-          .update({ role, team_lead_id: teamLeadId ?? null })
-          .eq('id', userId),
+        supabase.rpc('admin_update_profile', {
+          p_user_id:      userId,
+          p_role:         role,
+          p_team_lead_id: teamLeadId ?? null,
+          p_status:       null,
+        }),
         MUTATE_TIMEOUT,
       )
       if (error) { toast.error(`Failed: ${error.message}`); return false }
       toast.success('Role updated.')
       invalidateCache()
-      await fetchProfiles(true)
+      fetchProfiles(true)
       return true
     } catch {
       toast.error('Database connection failed.')
