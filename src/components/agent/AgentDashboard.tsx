@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
-import { useReturns } from '../../hooks/useReturns'
+import { useReturns, STOCK_RETURN_REASONS } from '../../hooks/useReturns'
 import { useSaleReceipt } from '../../hooks/useSaleReceipt'
 import { useStaleDeviceSettings } from '../../hooks/useStaleDeviceSettings'
 import SaleConfirmationModal from '../shared/SaleConfirmationModal'
@@ -16,14 +16,6 @@ import {
   MdPhoneAndroid, MdLogout, MdCheckCircle, MdUndo,
   MdSell, MdWarning, MdGroup, MdStorefront, MdAccessTime,
 } from 'react-icons/md'
-
-const STOCK_RETURN_REASONS = [
-  'Wrong model received',
-  'Phone damaged / defective',
-  'Excess stock',
-  'End of assignment period',
-  'Other',
-] as const
 
 function daysHeld(phone: Phone): number {
   if (!phone.assigned_at) return 0
@@ -44,7 +36,7 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
   onClose:        () => void
 }) {
   const [target,  setTarget]  = useState<ReturnTarget>(hasTeamLead ? 'team_lead' : 'store')
-  const [reason,  setReason]  = useState<string>(STOCK_RETURN_REASONS[0])
+  const [reason,  setReason]  = useState<string>(STOCK_RETURN_REASONS[0] ?? '')
   const [notes,   setNotes]   = useState('')
   const [loading, setLoading] = useState(false)
   const isDamaged = reason.toLowerCase().includes('damaged') || reason.toLowerCase().includes('defective')

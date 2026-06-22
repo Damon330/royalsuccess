@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
-import { useReturns } from '../../hooks/useReturns'
+import { useReturns, STOCK_RETURN_REASONS } from '../../hooks/useReturns'
 import { useSaleReceipt } from '../../hooks/useSaleReceipt'
 import { useStaleDeviceSettings } from '../../hooks/useStaleDeviceSettings'
 import SaleConfirmationModal from '../shared/SaleConfirmationModal'
@@ -61,14 +61,7 @@ function TLReturnModal({ phone, onSubmit, onClose }: {
   onSubmit: (reason: string, notes: string) => Promise<void>
   onClose:  () => void
 }) {
-  const REASONS = [
-    'Wrong model received',
-    'Phone damaged / defective',
-    'Excess stock',
-    'End of assignment period',
-    'Other',
-  ] as const
-  const [reason,  setReason]  = useState(REASONS[0] as string)
+  const [reason,  setReason]  = useState<string>(STOCK_RETURN_REASONS[0] ?? '')
   const [notes,   setNotes]   = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -103,7 +96,7 @@ function TLReturnModal({ phone, onSubmit, onClose }: {
             onChange={(e) => setReason(e.target.value)}
             className="w-full border border-brand-border rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
           >
-            {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+            {STOCK_RETURN_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
 

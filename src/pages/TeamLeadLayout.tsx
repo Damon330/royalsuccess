@@ -5,6 +5,7 @@ import TLAgents from '../components/teamlead/TLAgents'
 import ActivityPage from './ActivityPage'
 import AccountPage from '../components/shared/AccountPage'
 import BottomNav from '../components/shared/BottomNav'
+import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { MdHome, MdPhoneAndroid, MdGroup, MdHistory, MdPerson } from 'react-icons/md'
 
 const NAV_ITEMS = [
@@ -19,14 +20,16 @@ export default function TeamLeadLayout() {
   return (
     <div className="min-h-screen bg-brand-bg flex flex-col">
       <div className="flex-1 overflow-y-auto pb-16">
-        <Routes>
-          <Route path="/"        element={<TeamLeadDashboard />} />
-          <Route path="assign"   element={<TLAssign />} />
-          <Route path="agents"   element={<TLAgents />} />
-          <Route path="activity" element={<ActivityPage />} />
-          <Route path="account"  element={<AccountPage />} />
-          <Route path="*"        element={<Navigate to="/teamlead" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/"        element={<TeamLeadDashboard />} />
+            <Route path="assign"   element={<TLAssign />} />
+            <Route path="agents"   element={<TLAgents />} />
+            <Route path="activity" element={<ActivityPage />} />
+            <Route path="account"  element={<AccountPage />} />
+            <Route path="*"        element={<Navigate to="/teamlead" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </div>
       <BottomNav items={NAV_ITEMS} />
     </div>

@@ -4,7 +4,7 @@ export type PhoneStatus    = 'in_stock' | 'assigned' | 'sold' | 'returned' | 'da
 export type ReturnStatus   = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type ReturnReason   =
   | 'Defective' | 'Wrong Item' | 'Customer Refusal' | 'Other'
-  | 'Wrong model received' | 'Phone damaged' | 'Excess stock' | 'End of assignment period'
+  | 'Wrong model received' | 'Phone damaged' | 'Phone damaged / defective' | 'Excess stock' | 'End of assignment period'
 
 export type ActivityActionType =
   | 'PHONE_ASSIGNED'

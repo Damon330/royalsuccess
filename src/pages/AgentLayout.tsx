@@ -3,6 +3,7 @@ import AgentDashboard from '../components/agent/AgentDashboard'
 import ActivityPage from './ActivityPage'
 import AccountPage from '../components/shared/AccountPage'
 import BottomNav from '../components/shared/BottomNav'
+import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { MdPhoneAndroid, MdHistory, MdPerson } from 'react-icons/md'
 
 const NAV_ITEMS = [
@@ -15,12 +16,14 @@ export default function AgentLayout() {
   return (
     <div className="min-h-screen bg-brand-bg flex flex-col">
       <div className="flex-1 overflow-y-auto pb-16">
-        <Routes>
-          <Route path="/"        element={<AgentDashboard />} />
-          <Route path="activity" element={<ActivityPage />} />
-          <Route path="account"  element={<AccountPage />} />
-          <Route path="*"        element={<Navigate to="/agent" replace />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/"        element={<AgentDashboard />} />
+            <Route path="activity" element={<ActivityPage />} />
+            <Route path="account"  element={<AccountPage />} />
+            <Route path="*"        element={<Navigate to="/agent" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </div>
       <BottomNav items={NAV_ITEMS} />
     </div>

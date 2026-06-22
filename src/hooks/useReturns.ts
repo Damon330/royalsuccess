@@ -10,7 +10,7 @@ import toast from 'react-hot-toast'
 // Return reasons for stock returns (agent/TL returning an assigned phone to warehouse)
 export const STOCK_RETURN_REASONS: ReturnReason[] = [
   'Wrong model received',
-  'Phone damaged',
+  'Phone damaged / defective',
   'Excess stock',
   'End of assignment period',
   'Other',

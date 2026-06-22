@@ -100,12 +100,11 @@ export default function LoginPage() {
     e.preventDefault()
     if (!checkRateLimit()) return
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: window.location.origin,
     })
     setLoading(false)
-    // Always show success — prevents email enumeration
-    if (error) { console.warn('[reset]', error.message) }
+    // Always show success — prevents email enumeration.
     toast.success('If that email exists, a reset link has been sent.')
   }
 
