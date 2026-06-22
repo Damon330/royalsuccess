@@ -1,23 +1,38 @@
 -- ============================================================
--- Royal Success — Fix stale device settings save
+-- Royal Success — Stale Device Settings: full SQL setup
+-- Run this file (NOT stale-device-settings.sql).
 --
--- BEFORE RUNNING THIS:
---   Create the stale_device_settings table via Supabase
---   Dashboard → Table Editor → New Table (if it doesn't exist).
---   Columns: id (text PK default 'default'), agent_days (int4
---   default 3), team_lead_days (int4 default 14), updated_at
---   (timestamptz default now()), updated_by (uuid nullable).
---
--- This file only creates the RPC + policies (no CREATE TABLE).
--- Safe to re-run in: Supabase Dashboard → SQL Editor → New Query
+-- Supabase Dashboard → SQL Editor → New Query → paste → Run
 -- ============================================================
 
--- ── 0. Ensure default row exists ───────────────────────────────────
+-- ── 0. Fix schema permissions first ────────────────────────
+-- Newer Supabase projects (PostgreSQL 15) restrict CREATE on
+-- the public schema. The postgres role is superuser and can
+-- grant itself the privilege it needs.
+DO $$
+BEGIN
+  EXECUTE 'GRANT USAGE, CREATE ON SCHEMA public TO postgres';
+  EXECUTE 'GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role';
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Schema grant notice (non-fatal): %', SQLERRM;
+END;
+$$;
+
+-- ── 1. Create table ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.stale_device_settings (
+  id             text        PRIMARY KEY DEFAULT 'default' CHECK (id = 'default'),
+  agent_days     integer     NOT NULL DEFAULT 3  CHECK (agent_days BETWEEN 1 AND 90),
+  team_lead_days integer     NOT NULL DEFAULT 14 CHECK (team_lead_days BETWEEN 1 AND 90),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  updated_by     uuid        REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+
+-- ── 2. Default row ─────────────────────────────────────────
 INSERT INTO public.stale_device_settings (id, agent_days, team_lead_days)
 VALUES ('default', 3, 14)
 ON CONFLICT (id) DO NOTHING;
 
--- ── 1. RLS policies with dual-check ────────────────────────────────
+-- ── 3. RLS + policies ──────────────────────────────────────
 ALTER TABLE public.stale_device_settings ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "stale_settings_read"         ON public.stale_device_settings;
@@ -47,7 +62,7 @@ CREATE POLICY "stale_settings_admin_update" ON public.stale_device_settings
 
 GRANT SELECT, INSERT, UPDATE ON public.stale_device_settings TO authenticated;
 
--- ── 2. SECURITY DEFINER RPC — bypasses RLS for admin save ──────────
+-- ── 4. SECURITY DEFINER RPC (bypasses RLS — the save button uses this) ──
 CREATE OR REPLACE FUNCTION public.upsert_stale_device_settings(
   p_agent_days     integer,
   p_team_lead_days integer
@@ -89,11 +104,12 @@ $$;
 REVOKE ALL   ON FUNCTION public.upsert_stale_device_settings(integer, integer) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.upsert_stale_device_settings(integer, integer) TO authenticated;
 
--- ── 3. Verify ──────────────────────────────────────────────────────
+-- ── 5. Verify ──────────────────────────────────────────────
 SELECT
+  current_user               AS running_as,
   id,
   agent_days,
   team_lead_days,
-  'OK — stale settings ready' AS status
+  'Setup complete'           AS status
 FROM public.stale_device_settings
 WHERE id = 'default';
