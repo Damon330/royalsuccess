@@ -14,7 +14,7 @@ export const STOCK_RETURN_REASONS: ReturnReason[] = [
   'Excess stock',
   'End of assignment period',
   'Other',
-] as unknown as ReturnReason[]
+]
 
 const QUERY_TIMEOUT  = 8000
 const MUTATE_TIMEOUT = 12000
@@ -268,8 +268,12 @@ export function useReturns(statusFilter?: ReturnStatus, channelId = 'returns-mai
     rejectionNote: string,
   ): Promise<boolean> {
     try {
-      const ret = returns.find((r) => r.id === returnId)
-      if (!ret) { toast.error('Return not found.'); return false }
+      const { data: freshRet, error: fetchErr } = await withTimeout(
+        supabase.from('returns').select('*').eq('id', returnId).single(),
+        QUERY_TIMEOUT,
+      )
+      if (fetchErr || !freshRet) { toast.error('Return not found.'); return false }
+      const ret = freshRet
 
       const now = new Date().toISOString()
 

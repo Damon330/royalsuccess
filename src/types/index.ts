@@ -2,7 +2,9 @@ export type Role           = 'admin' | 'team_lead' | 'agent'
 export type ProfileStatus  = 'pending' | 'active'
 export type PhoneStatus    = 'in_stock' | 'assigned' | 'sold' | 'returned' | 'damaged'
 export type ReturnStatus   = 'PENDING' | 'APPROVED' | 'REJECTED'
-export type ReturnReason   = 'Defective' | 'Wrong Item' | 'Customer Refusal' | 'Other'
+export type ReturnReason   =
+  | 'Defective' | 'Wrong Item' | 'Customer Refusal' | 'Other'
+  | 'Wrong model received' | 'Phone damaged' | 'Excess stock' | 'End of assignment period'
 
 export type ActivityActionType =
   | 'PHONE_ASSIGNED'
