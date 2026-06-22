@@ -73,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let fetchFailed = false
     try {
       const { data } = await withTimeout(
-        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('profiles')
+          .select('id,full_name,phone_number,role,team_lead_id,status,created_at')
+          .eq('id', userId).maybeSingle(),
         PROFILE_TIMEOUT,
       )
       existing = data ?? null
@@ -110,7 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           PROFILE_TIMEOUT,
         )
         const { data: fresh } = await withTimeout(
-          supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+          supabase.from('profiles')
+            .select('id,full_name,phone_number,role,team_lead_id,status,created_at')
+            .eq('id', userId).maybeSingle(),
           PROFILE_TIMEOUT,
         )
         return fresh ?? {

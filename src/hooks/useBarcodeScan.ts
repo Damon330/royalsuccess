@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { BrowserMultiFormatReader } from '@zxing/browser'
 
 // HID keyboard-wedge scanners (Zebra, Honeywell, Cino, Cilico, Eyoyo) send
 // characters at burst speed (< 50 ms apart) and terminate with Enter.
@@ -28,7 +27,8 @@ export function useBarcodeScan(
   useEffect(() => { onScanRef.current = onScan }, [onScan])
 
   // ── Camera (ZXing) ──────────────────────────────────────────
-  const readerRef   = useRef<BrowserMultiFormatReader | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const readerRef   = useRef<any>(null)
   const controlsRef = useRef<{ stop: () => void } | null>(null)
 
   const stopCamera = useCallback(() => {
@@ -41,11 +41,15 @@ export function useBarcodeScan(
     setCameraError(null)
     setIsScanning(true)
     try {
-      if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader()
+      if (!readerRef.current) {
+        const { BrowserMultiFormatReader } = await import('@zxing/browser')
+        readerRef.current = new BrowserMultiFormatReader()
+      }
       controlsRef.current = await readerRef.current.decodeFromVideoDevice(
         undefined,   // undefined = let browser pick default camera
         videoEl,
-        (result, _err, controls) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (result: any, _err: any, controls: any) => {
           if (result) {
             controls.stop()
             controlsRef.current = null

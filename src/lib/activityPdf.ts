@@ -1,6 +1,4 @@
-import { pdf } from '@react-pdf/renderer'
 import { createElement } from 'react'
-import ActivityPdfDocument from '../components/shared/ActivityPdfDocument'
 import { supabase } from './supabase'
 import type { ActivityLogEntry } from '../types'
 
@@ -29,6 +27,11 @@ export async function downloadActivityPdf(
   const entries    = (data ?? []) as ActivityLogEntry[]
   const monthName  = new Date(year, month - 1).toLocaleString('en', { month: 'long' })
   const fileName   = `activity-${monthName.toLowerCase()}-${year}.pdf`
+
+  const [{ pdf }, { default: ActivityPdfDocument }] = await Promise.all([
+    import('@react-pdf/renderer'),
+    import('../components/shared/ActivityPdfDocument'),
+  ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const element = createElement(ActivityPdfDocument as any, { entries, month: monthName, year, reportTitle }) as any

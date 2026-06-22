@@ -22,7 +22,7 @@ export function useNotifications(userId: string | undefined) {
       const { data, error } = await withTimeout(
         supabase
           .from('notifications')
-          .select('*')
+          .select('id,recipient_id,type,title,body,sale_id,read,created_at')
           .eq('recipient_id', userId)
           .order('created_at', { ascending: false })
           .range(offsetRef.current, offsetRef.current + PAGE_SIZE - 1),

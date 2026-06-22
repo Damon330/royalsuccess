@@ -23,25 +23,20 @@ export default function TLAgents() {
     if (!profile) return
     setLoading(true)
     try {
-      const { data: profiles } = await withTimeout(
+      const { data: rows } = await withTimeout(
         supabase
           .from('profiles')
-          .select('*')
+          .select('id,full_name,phone_number,role,team_lead_id,status,created_at, phones:phones(id,model,imei,serial_number,barcode,status,assigned_to)')
           .eq('team_lead_id', profile.id)
           .eq('status', 'active'),
-        8000,
+        10_000,
       )
-      if (!profiles) return
-
-      const ids = (profiles as Profile[]).map((a) => a.id)
-      const { data: agentPhones } = ids.length > 0
-        ? await withTimeout(supabase.from('phones').select('*').in('assigned_to', ids), 8000)
-        : { data: [] }
+      if (!rows) return
 
       setAgents(
-        (profiles as Profile[]).map((a) => ({
-          profile: a,
-          phones:  ((agentPhones ?? []) as Phone[]).filter((ph) => ph.assigned_to === a.id),
+        (rows as Array<Profile & { phones: Phone[] }>).map((a) => ({
+          profile: a as Profile,
+          phones:  (a.phones ?? []) as Phone[],
         })),
       )
     } catch {

@@ -59,6 +59,21 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('@react-pdf'))    return 'vendor-pdf'
+          if (id.includes('@zxing'))        return 'vendor-zxing'
+          if (id.includes('@supabase'))     return 'vendor-supabase'
+          if (id.includes('framer-motion')) return 'vendor-motion'
+          if (id.includes('@tanstack'))     return 'vendor-query'
+          if (id.includes('react-dom') || id.includes('react/') || id.includes('react-router')) return 'vendor-react'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
