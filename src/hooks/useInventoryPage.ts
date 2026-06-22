@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { withTimeout } from '../lib/withTimeout'
@@ -7,6 +7,9 @@ import { logDbError } from '../lib/errorLog'
 import type { Phone, PhoneStatus } from '../types'
 
 export const INVENTORY_PAGE_SIZE = 25
+
+// Stable per-module-load ID — avoids Supabase channel name conflicts on re-mount
+const INVENTORY_RT_CHANNEL = `inventory-invalidator-${Math.random().toString(36).slice(2)}`
 
 export interface InventoryFilter {
   status?: PhoneStatus | 'all'
@@ -32,7 +35,7 @@ export function useInventoryPage(page: number, filter: InventoryFilter = {}) {
   const query = useQuery<InventoryPage>({
     queryKey,
     queryFn:         () => tracked('inventory-page', () => fetchPage(page, filter)),
-    staleTime:       30_000,
+    staleTime:       12_000,
     placeholderData: keepPreviousData,   // old page stays visible while next loads
   })
 
@@ -42,19 +45,29 @@ export function useInventoryPage(page: number, filter: InventoryFilter = {}) {
     queryClient.prefetchQuery({
       queryKey: nextKey,
       queryFn:  () => tracked('inventory-prefetch', () => fetchPage(page + 1, filter)),
-      staleTime: 30_000,
+      staleTime: 12_000,
     })
   }, [page, filter, queryClient])
 
-  // Realtime: invalidate cached pages when any phone changes
+  // Realtime: invalidate cached pages when any phone changes.
+  // Debounced 300 ms to batch burst events on Supabase cold-start reconnect.
+  const invalidateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     const ch = supabase
-      .channel('inventory-cache-invalidator')
+      .channel(INVENTORY_RT_CHANNEL)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'phones' }, () => {
-        queryClient.invalidateQueries({ queryKey: ['inventory'] })
+        if (invalidateTimer.current) clearTimeout(invalidateTimer.current)
+        invalidateTimer.current = setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['inventory'] })
+        }, 300)
       })
       .subscribe()
-    return () => { ch.unsubscribe(); supabase.removeChannel(ch) }
+    return () => {
+      if (invalidateTimer.current) clearTimeout(invalidateTimer.current)
+      ch.unsubscribe()
+      supabase.removeChannel(ch)
+    }
   }, [queryClient])
 
   return query
@@ -78,7 +91,7 @@ async function fetchPage(page: number, filter: InventoryFilter): Promise<Invento
       p_status: filter.status && filter.status !== 'all' ? filter.status : null,
       p_search: filter.search?.trim() || null,
     }),
-    30_000,
+    12_000,
   )
 
   if (!pageResult.error) {
@@ -104,7 +117,7 @@ async function fetchPage(page: number, filter: InventoryFilter): Promise<Invento
     throw new Error(pageResult.error.message)
   }
 
-  const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 30_000)
+  const { data, error } = await withTimeout(supabase.rpc('admin_get_phones'), 12_000)
   if (error) {
     logDbError('useInventoryPage', error.message, { code: error.code, detail: error.details })
     throw new Error(error.message)
