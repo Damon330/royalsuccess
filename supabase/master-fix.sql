@@ -753,6 +753,8 @@ REVOKE ALL   ON FUNCTION public.get_dashboard_stats() FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_dashboard_stats() TO authenticated;
 
 
+DROP FUNCTION IF EXISTS public.get_team_overview();
+
 CREATE OR REPLACE FUNCTION public.get_team_overview()
 RETURNS TABLE (
   id         uuid,
@@ -1237,6 +1239,9 @@ GRANT  EXECUTE ON FUNCTION public.admin_stale_alerts(integer, integer) TO authen
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- DROP required: CREATE OR REPLACE cannot change return type if column list differs
+DROP FUNCTION IF EXISTS public.admin_get_phones_page(integer, integer, text, text);
 
 CREATE OR REPLACE FUNCTION public.admin_get_phones_page(
   p_limit   integer DEFAULT 25,

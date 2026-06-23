@@ -185,6 +185,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
 
+        // Token refresh only — session is still valid, profile hasn't changed.
+        // Silently swap the token without showing the loading spinner.
+        if (_event === 'TOKEN_REFRESHED' && s) {
+          setSession(s)
+          if (!initialised.current) {
+            initialised.current = true
+            clearTimeout(initTimeout)
+            setLoading(false)
+          }
+          return
+        }
+
         if (_event === 'PASSWORD_RECOVERY') {
           setIsPasswordRecovery(true)
           setSession(s)
