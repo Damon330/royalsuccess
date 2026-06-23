@@ -238,7 +238,13 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-  IF NEW.role IS DISTINCT FROM OLD.role AND NOT is_admin() THEN
+  -- auth.uid() IS NULL when running in SQL Editor / service role context.
+  -- Allow those contexts unconditionally so DBA bootstrap works.
+  -- Block only authenticated non-admin app requests.
+  IF NEW.role IS DISTINCT FROM OLD.role
+     AND auth.uid() IS NOT NULL
+     AND NOT is_admin()
+  THEN
     RAISE EXCEPTION 'permission denied: role changes require admin access'
       USING ERRCODE = '42501';
   END IF;
@@ -308,6 +314,7 @@ DROP POLICY IF EXISTS "phones_agent_read_own"              ON public.phones;
 DROP POLICY IF EXISTS "phones_agent_update_own"            ON public.phones;
 DROP POLICY IF EXISTS "phones_teamlead_read_agents"        ON public.phones;
 DROP POLICY IF EXISTS "phones_teamlead_own"                ON public.phones;
+DROP POLICY IF EXISTS "phones_teamlead_read_own"           ON public.phones;
 DROP POLICY IF EXISTS "phones_teamlead_manage_assignments" ON public.phones;
 DROP POLICY IF EXISTS "phones_teamlead_read_instock"       ON public.phones;
 DROP POLICY IF EXISTS "phones_teamlead_assign"             ON public.phones;
@@ -333,8 +340,11 @@ CREATE POLICY "phones_teamlead_read_agents" ON public.phones
     )
   );
 
-CREATE POLICY "phones_teamlead_own" ON public.phones
-  FOR ALL USING (assigned_to = auth.uid());
+-- SELECT only — UPDATE is covered by phones_teamlead_manage_assignments.
+-- FOR ALL here would also give agents (who also satisfy assigned_to=uid)
+-- unintended DELETE + INSERT on their own phones.
+CREATE POLICY "phones_teamlead_read_own" ON public.phones
+  FOR SELECT USING (assigned_to = auth.uid());
 
 -- Team lead: reassign phones between self and their agents
 CREATE POLICY "phones_teamlead_manage_assignments" ON public.phones
@@ -802,7 +812,11 @@ BEGIN
     RAISE EXCEPTION 'phone not found: %', p_phone_id USING ERRCODE = 'P0002';
   END IF;
 
-  -- Deleting the phone cascades to: sales, receipts, returns
+  -- Explicit pre-delete: safety net if Section 2 CASCADE FK migration
+  -- did not apply on this server state. Harmless when CASCADE is set.
+  DELETE FROM public.receipts WHERE phone_id = p_phone_id;
+
+  -- CASCADE handles sales + returns; receipts already cleared above
   DELETE FROM public.phones WHERE id = p_phone_id;
 END;
 $$;
@@ -1024,11 +1038,19 @@ SELECT public.health_check();
 -- IMPORTANT: After running this file, the admin is identified
 -- ONLY by profiles.role = 'admin'. If the admin profile was
 -- created with role='agent' (the default for new signups),
--- run the following ONCE to promote the admin:
+-- promote it via ONE of these methods:
 --
---   UPDATE public.profiles
---   SET role = 'admin', status = 'active'
---   WHERE id = auth.uid();   -- run as the admin user in SQL editor
+-- METHOD A — SQL Editor (auth.uid() is NULL here; use the literal UUID):
+--   Step 1: find the admin UUID:
+--     SELECT id FROM auth.users WHERE email = 'your-admin@example.com';
+--   Step 2: promote:
+--     UPDATE public.profiles
+--     SET role = 'admin', status = 'active'
+--     WHERE id = '<paste-uuid-from-step-1>';
 --
--- Or via Supabase Table Editor: profiles → find admin row → edit role.
+-- METHOD B — Table Editor: Supabase Dashboard → Table Editor →
+--   profiles table → find admin row → click Edit → set role=admin.
+--
+-- NOTE: do NOT use auth.uid() in the WHERE clause — it returns NULL
+-- in the SQL Editor and will match zero rows silently.
 -- ============================================================
