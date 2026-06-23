@@ -920,7 +920,655 @@ $$;
 
 
 -- ============================================================
--- SECTION 9 — REVOKE/GRANT: Lock down all SECURITY DEFINER RPCs
+-- SECTION 9a — AUTH: handle_new_user trigger + auth_email_exists
+--
+-- handle_new_user: called by the on_auth_user_created trigger every
+-- time a user signs up (email/password or Google OAuth). Creates the
+-- profile row with status='pending'. DO UPDATE ensures Google re-logins
+-- update full_name/phone_number without overwriting existing values.
+--
+-- auth_email_exists: called by the login screen to show "no account
+-- found" before the user tries a password they'll fail with.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, full_name, phone_number, status)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    NULLIF(NEW.raw_user_meta_data->>'phone_number', ''),
+    'pending'
+  )
+  ON CONFLICT (id) DO UPDATE
+    SET full_name    = COALESCE(EXCLUDED.full_name,    public.profiles.full_name),
+        phone_number = COALESCE(EXCLUDED.phone_number, public.profiles.phone_number);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+CREATE OR REPLACE FUNCTION public.auth_email_exists(p_email text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = auth, public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE lower(email) = lower(trim(p_email))
+  );
+$$;
+
+REVOKE ALL     ON FUNCTION public.auth_email_exists(text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.auth_email_exists(text) TO anon, authenticated;
+
+
+-- ============================================================
+-- SECTION 9b — ADMIN WRITE RPCs
+--
+-- admin_update_profile: used for approving pending agents,
+-- changing roles, assigning team leads. SECURITY DEFINER bypasses
+-- the profiles_self_update RLS restriction.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.admin_update_profile(
+  p_user_id      uuid,
+  p_role         text,
+  p_team_lead_id uuid DEFAULT NULL,
+  p_status       text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+  IF p_role NOT IN ('agent', 'team_lead', 'admin') THEN
+    RAISE EXCEPTION 'invalid role: %', p_role USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE public.profiles
+  SET
+    role         = p_role::public.user_role,
+    team_lead_id = p_team_lead_id,
+    -- NULL p_status = preserve current status (role-only change).
+    -- 'active' promotes a pending user at approval time.
+    status       = COALESCE(p_status::public.profile_status, status)
+  WHERE id = p_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'profile not found: %', p_user_id USING ERRCODE = 'P0002';
+  END IF;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_update_profile(uuid, text, uuid, text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_update_profile(uuid, text, uuid, text) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 9c — ADMIN READ RPCs
+--
+-- admin_get_phones / admin_get_profiles: full-table reads used when
+-- the admin first loads inventory or agents page. SECURITY DEFINER
+-- bypasses per-row RLS evaluation (critical for 1000+ phone tables).
+--
+-- admin_dashboard_stats: returns all KPIs in a single DB round-trip.
+-- No 5000-row transfer; computes everything server-side.
+--
+-- admin_team_overview: agents + team leads with their phone/stale
+-- counts. Reads thresholds from stale_device_settings.
+--
+-- admin_stale_alerts: only the phones that are overdue. Alert panel.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.admin_get_phones()
+RETURNS SETOF public.phones
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY SELECT * FROM public.phones ORDER BY created_at DESC;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_get_phones() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_get_phones() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.admin_get_profiles()
+RETURNS SETOF public.profiles
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+  RETURN QUERY
+    SELECT * FROM public.profiles
+    WHERE role != 'admin'
+    ORDER BY role, full_name;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_get_profiles() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_get_profiles() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.admin_dashboard_stats()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_phone_stats jsonb;
+  v_team_stats  jsonb;
+  v_today       bigint;
+  v_month       bigint;
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT jsonb_build_object(
+    'total',    COUNT(*),
+    'in_stock', COUNT(*) FILTER (WHERE status = 'in_stock'),
+    'in_field', COUNT(*) FILTER (WHERE status = 'assigned'),
+    'sold',     COUNT(*) FILTER (WHERE status = 'sold'),
+    'returned', COUNT(*) FILTER (WHERE status = 'returned'),
+    'damaged',  COUNT(*) FILTER (WHERE status = 'damaged')
+  ) INTO v_phone_stats FROM public.phones;
+
+  SELECT jsonb_build_object(
+    'total_agents',    COUNT(*) FILTER (WHERE role = 'agent'),
+    'total_teamleads', COUNT(*) FILTER (WHERE role = 'team_lead'),
+    'active',          COUNT(*) FILTER (WHERE status = 'active'),
+    'pending',         COUNT(*) FILTER (WHERE status = 'pending')
+  ) INTO v_team_stats FROM public.profiles WHERE role != 'admin';
+
+  SELECT COUNT(*) INTO v_today FROM public.sales WHERE sold_at >= CURRENT_DATE;
+  SELECT COUNT(*) INTO v_month FROM public.sales WHERE sold_at >= date_trunc('month', NOW());
+
+  RETURN jsonb_build_object(
+    'phones',      v_phone_stats,
+    'team',        v_team_stats,
+    'salesToday',  v_today,
+    'salesMonth',  v_month,
+    'generatedAt', extract(epoch from now())::bigint
+  );
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_dashboard_stats() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_dashboard_stats() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.admin_team_overview()
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_result         jsonb;
+  v_agent_days     integer := 3;
+  v_team_lead_days integer := 14;
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT agent_days, team_lead_days
+    INTO v_agent_days, v_team_lead_days
+    FROM public.stale_device_settings WHERE id = 'default';
+
+  v_agent_days     := COALESCE(v_agent_days, 3);
+  v_team_lead_days := COALESCE(v_team_lead_days, 14);
+
+  SELECT jsonb_agg(row_to_json(t)) INTO v_result
+  FROM (
+    SELECT
+      p.id, p.full_name, p.role, p.status, p.team_lead_id, p.created_at,
+      COUNT(ph.id)                                                                           AS assigned_count,
+      COUNT(ph.id) FILTER (WHERE ph.status = 'sold')                                        AS sold_count,
+      COUNT(ph.id) FILTER (WHERE ph.status = 'assigned')                                    AS active_count,
+      COUNT(ph.id) FILTER (
+        WHERE ph.status = 'assigned' AND ph.assigned_at IS NOT NULL AND (
+          (p.role = 'agent'     AND ph.assigned_at < NOW() - (v_agent_days     || ' days')::interval) OR
+          (p.role = 'team_lead' AND ph.assigned_at < NOW() - (v_team_lead_days || ' days')::interval)
+        )
+      )                                                                                      AS stale_phone_count,
+      MAX(EXTRACT(EPOCH FROM (NOW() - ph.assigned_at)) / 86400)
+        FILTER (WHERE ph.status = 'assigned' AND ph.assigned_at IS NOT NULL)                AS max_days_assigned
+    FROM public.profiles p
+    LEFT JOIN public.phones ph ON ph.assigned_to = p.id
+    WHERE p.role != 'admin'
+    GROUP BY p.id, p.full_name, p.role, p.status, p.team_lead_id, p.created_at
+    ORDER BY p.role, p.full_name
+  ) t;
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_team_overview() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_team_overview() TO authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.admin_stale_alerts(
+  p_agent_days    integer DEFAULT 3,
+  p_teamlead_days integer DEFAULT 14
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE v_result jsonb;
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'phone_id',       ph.id,
+      'model',          ph.model,
+      'imei',           ph.imei,
+      'barcode',        ph.barcode,
+      'serial_number',  ph.serial_number,
+      'assigned_at',    ph.assigned_at,
+      'holder_id',      p.id,
+      'holder_name',    p.full_name,
+      'holder_role',    p.role,
+      'days_assigned',  FLOOR(EXTRACT(EPOCH FROM (NOW() - ph.assigned_at)) / 86400),
+      'threshold_days', CASE WHEN p.role = 'team_lead' THEN p_teamlead_days ELSE p_agent_days END,
+      'over_by_days',   FLOOR(EXTRACT(EPOCH FROM (NOW() - ph.assigned_at)) / 86400)
+                        - CASE WHEN p.role = 'team_lead' THEN p_teamlead_days ELSE p_agent_days END
+    ) ORDER BY ph.assigned_at ASC
+  ) INTO v_result
+  FROM public.phones ph
+  JOIN public.profiles p ON p.id = ph.assigned_to
+  WHERE ph.status = 'assigned'
+    AND ph.assigned_at IS NOT NULL
+    AND p.role != 'admin'
+    AND (
+      (p.role = 'team_lead' AND ph.assigned_at < NOW() - (p_teamlead_days || ' days')::interval) OR
+      (p.role = 'agent'     AND ph.assigned_at < NOW() - (p_agent_days    || ' days')::interval)
+    );
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_stale_alerts(integer, integer) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_stale_alerts(integer, integer) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 9d — PAGINATED PHONE LIST
+-- ============================================================
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE OR REPLACE FUNCTION public.admin_get_phones_page(
+  p_limit   integer DEFAULT 25,
+  p_offset  integer DEFAULT 0,
+  p_status  text    DEFAULT NULL,
+  p_search  text    DEFAULT NULL
+)
+RETURNS TABLE (
+  id            uuid,
+  model         text,
+  barcode       text,
+  imei          text,
+  serial_number text,
+  status        public.phone_status,
+  assigned_to   uuid,
+  assigned_at   timestamptz,
+  sold_at       timestamptz,
+  created_at    timestamptz,
+  total_count   bigint
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_limit  integer := LEAST(GREATEST(COALESCE(p_limit, 25), 1), 100);
+  v_offset integer := GREATEST(COALESCE(p_offset, 0), 0);
+  v_search text    := NULLIF(BTRIM(p_search), '');
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  RETURN QUERY
+  WITH filtered AS (
+    SELECT p.* FROM public.phones p
+    WHERE
+      (p_status IS NULL OR p_status = 'all' OR p.status::text = p_status)
+      AND (
+        v_search IS NULL
+        OR p.model         ILIKE '%' || v_search || '%'
+        OR p.imei          ILIKE '%' || v_search || '%'
+        OR p.serial_number ILIKE '%' || v_search || '%'
+        OR p.barcode       ILIKE '%' || v_search || '%'
+      )
+  ),
+  counted AS (SELECT COUNT(*)::bigint AS total_count FROM filtered)
+  SELECT
+    f.id, f.model, f.barcode, f.imei, f.serial_number,
+    f.status, f.assigned_to, f.assigned_at, f.sold_at, f.created_at,
+    c.total_count
+  FROM filtered f CROSS JOIN counted c
+  ORDER BY f.created_at DESC
+  LIMIT v_limit OFFSET v_offset;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_get_phones_page(integer, integer, text, text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_get_phones_page(integer, integer, text, text) TO authenticated;
+
+-- Performance indexes for paginated search
+CREATE INDEX IF NOT EXISTS idx_phones_created_at_desc   ON public.phones (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_phones_status_created_at ON public.phones (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_phones_assigned_to       ON public.phones (assigned_to);
+DO $$ BEGIN
+  CREATE INDEX idx_phones_model_trgm  ON public.phones USING gin (model gin_trgm_ops);
+EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE INDEX idx_phones_imei_trgm   ON public.phones USING gin (imei gin_trgm_ops);
+EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE INDEX idx_phones_serial_trgm ON public.phones USING gin (serial_number gin_trgm_ops);
+EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE INDEX idx_phones_barcode_trgm ON public.phones USING gin (barcode gin_trgm_ops);
+EXCEPTION WHEN duplicate_table OR duplicate_object THEN NULL; END $$;
+
+-- Data integrity: prevent duplicate IMEI and barcode
+DO $$
+BEGIN
+  EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS idx_phones_imei_unique ON public.phones(imei) WHERE imei IS NOT NULL';
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$
+BEGIN
+  EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS idx_phones_barcode_unique ON public.phones(barcode) WHERE barcode IS NOT NULL';
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+
+-- ============================================================
+-- SECTION 9e — HEALTH CHECK
+--
+-- Called by Section 10h verification and the DiagnosticsPage.
+-- Returns admin status + resolved email so the admin can confirm
+-- their JWT is being seen correctly by the database.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.health_check()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT jsonb_build_object(
+    'ok',         true,
+    'ts',         extract(epoch from now())::bigint,
+    'is_admin',   is_admin(),
+    'auth_email', COALESCE(auth.email(), auth.jwt() ->> 'email', 'unauthenticated')
+  )
+$$;
+
+REVOKE ALL     ON FUNCTION public.health_check() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.health_check() TO authenticated, anon;
+
+
+-- ============================================================
+-- SECTION 9f — NOTIFICATION HELPERS
+-- ============================================================
+
+-- Low-level insert; called by server-side code and trusted clients.
+CREATE OR REPLACE FUNCTION public.send_notification(
+  p_recipient_id uuid,
+  p_type         text,
+  p_title        text,
+  p_body         text,
+  p_sale_id      uuid DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '42501';
+  END IF;
+  -- Silently skip phantom recipients (user was deleted mid-flow)
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_recipient_id) THEN
+    RETURN;
+  END IF;
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id, read)
+  VALUES (p_recipient_id, p_type, p_title, p_body, p_sale_id, false);
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.send_notification(uuid, text, text, text, uuid) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.send_notification(uuid, text, text, text, uuid) TO authenticated;
+
+
+-- Notifies admin + team lead when an agent marks a phone sold.
+CREATE OR REPLACE FUNCTION public.notify_on_sale(
+  p_sale_id     uuid,
+  p_agent_id    uuid,
+  p_agent_name  text,
+  p_phone_label text,
+  p_amount      numeric,
+  p_payment     text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_title text := 'New Sale by ' || p_agent_name;
+  v_body  text := p_phone_label || ' sold for ₦' ||
+                  to_char(p_amount, 'FM999,999,999') || ' (' || p_payment || ')';
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '42501';
+  END IF;
+
+  -- Notify all admins
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id)
+  SELECT id, 'SALE_COMPLETED', v_title, v_body, p_sale_id
+  FROM public.profiles WHERE role = 'admin' AND id <> p_agent_id;
+
+  -- Notify agent's team lead (if any)
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id)
+  SELECT team_lead_id, 'SALE_COMPLETED', v_title, v_body, p_sale_id
+  FROM public.profiles
+  WHERE id = p_agent_id AND team_lead_id IS NOT NULL;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.notify_on_sale(uuid, uuid, text, text, numeric, text) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.notify_on_sale(uuid, uuid, text, text, numeric, text) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 9g — ACTIVITY LOG HELPER
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.log_activity(
+  p_actor_id     uuid,
+  p_actor_name   text,
+  p_role         text,
+  p_action_type  text,
+  p_entity_type  text,
+  p_entity_id    uuid,
+  p_entity_label text,
+  p_meta         jsonb DEFAULT NULL,
+  p_team_lead_id uuid  DEFAULT NULL,
+  p_agent_id     uuid  DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE v_id uuid;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO public.activity_log (
+    actor_id, actor_name, role, action_type,
+    entity_type, entity_id, entity_label, meta,
+    team_lead_id, agent_id
+  ) VALUES (
+    p_actor_id, p_actor_name, p_role, p_action_type,
+    p_entity_type, p_entity_id, p_entity_label, p_meta,
+    p_team_lead_id, p_agent_id
+  ) RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.log_activity(uuid, text, text, text, text, uuid, text, jsonb, uuid, uuid) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.log_activity(uuid, text, text, text, text, uuid, text, jsonb, uuid, uuid) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 9h — STALE DEVICE SETTINGS UPSERT
+-- ============================================================
+
+-- Ensure the singleton row exists (idempotent)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'stale_device_settings'
+  ) THEN
+    INSERT INTO public.stale_device_settings (id, agent_days, team_lead_days)
+    VALUES ('default', 3, 14)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.upsert_stale_device_settings(
+  p_agent_days     integer,
+  p_team_lead_days integer
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+  IF p_agent_days < 1 OR p_agent_days > 90 THEN
+    RAISE EXCEPTION 'agent_days must be between 1 and 90' USING ERRCODE = '22023';
+  END IF;
+  IF p_team_lead_days < 1 OR p_team_lead_days > 90 THEN
+    RAISE EXCEPTION 'team_lead_days must be between 1 and 90' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.stale_device_settings
+    (id, agent_days, team_lead_days, updated_at, updated_by)
+  VALUES
+    ('default', p_agent_days, p_team_lead_days, now(), auth.uid())
+  ON CONFLICT (id) DO UPDATE SET
+    agent_days     = EXCLUDED.agent_days,
+    team_lead_days = EXCLUDED.team_lead_days,
+    updated_at     = EXCLUDED.updated_at,
+    updated_by     = EXCLUDED.updated_by;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.upsert_stale_device_settings(integer, integer) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.upsert_stale_device_settings(integer, integer) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 9i — PAYROLL TIMESTAMP TRIGGER + REALTIME PUBLICATIONS
+-- ============================================================
+
+-- Generic updated_at trigger used by payroll tables
+CREATE OR REPLACE FUNCTION public.update_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='payroll_configs') THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_payroll_configs_updated_at ON public.payroll_configs';
+    EXECUTE 'CREATE TRIGGER trg_payroll_configs_updated_at BEFORE UPDATE ON public.payroll_configs FOR EACH ROW EXECUTE FUNCTION public.update_updated_at()';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='payroll_targets') THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_payroll_targets_updated_at ON public.payroll_targets';
+    EXECUTE 'CREATE TRIGGER trg_payroll_targets_updated_at BEFORE UPDATE ON public.payroll_targets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at()';
+  END IF;
+END;
+$$;
+
+-- Realtime subscriptions: ensure all live-update tables are published
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.phones;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+
+-- ============================================================
+-- SECTION 10 — REVOKE/GRANT: Lock down all SECURITY DEFINER RPCs
 --
 -- PostgreSQL grants EXECUTE to PUBLIC by default on new functions.
 -- REVOKE ALL then GRANT only to authenticated closes that default.
@@ -950,7 +1598,8 @@ BEGIN
     'upsert_stale_device_settings',
     'prevent_role_escalation',
     'validate_phone_status_transition',
-    'update_updated_at'
+    'update_updated_at',
+    'handle_new_user'
   ] LOOP
     FOR fn_rec IN
       SELECT p.oid, pg_get_function_identity_arguments(p.oid) AS args
@@ -988,7 +1637,7 @@ $$;
 
 
 -- ============================================================
--- SECTION 10 — VERIFICATION
+-- SECTION 11 — VERIFICATION
 --
 -- Run this after applying. All rows should show ✓.
 -- ============================================================
