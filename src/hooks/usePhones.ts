@@ -429,7 +429,7 @@ export function usePhones(assignedTo?: string, statusFilter?: import('../types')
 
     try {
       const { error } = await withTimeout(
-        supabase.from('phones').delete().eq('id', phoneId),
+        supabase.rpc('admin_delete_phone', { p_phone_id: phoneId }),
         MUTATE_TIMEOUT,
       )
       if (error) throw error
