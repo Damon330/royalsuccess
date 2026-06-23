@@ -175,6 +175,7 @@ $$;
 --   damaged   → in_stock    (phone repaired — was MISSING)
 --   sold      → returned    (disputed sale — was MISSING)
 --   in_stock  → sold        (admin direct entry — was MISSING)
+--   assigned  → in_stock    (admin reclaims phone when deleting agent — was MISSING)
 --
 -- BEFORE UPDATE OF status: only fires when status column changes,
 -- avoiding unnecessary execution on other column updates.
@@ -198,7 +199,8 @@ BEGIN
     (OLD.status = 'returned'  AND NEW.status = 'assigned') OR
     (OLD.status = 'returned'  AND NEW.status = 'damaged')  OR
     (OLD.status = 'damaged'   AND NEW.status = 'in_stock') OR
-    (OLD.status = 'sold'      AND NEW.status = 'returned')
+    (OLD.status = 'sold'      AND NEW.status = 'returned') OR
+    (OLD.status = 'assigned'  AND NEW.status = 'in_stock')
   THEN
     RETURN NEW;
   END IF;
@@ -823,6 +825,71 @@ $$;
 
 REVOKE ALL   ON FUNCTION public.admin_delete_phone(uuid) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.admin_delete_phone(uuid) TO authenticated;
+
+
+-- ============================================================
+-- SECTION 7b — admin_delete_profile: complete atomic agent/TL deletion
+--
+-- Was missing from the original master-fix.sql entirely.
+-- The standalone admin-delete-profile.sql also had Bug 1 below.
+--
+-- Bug 1 (root cause of "failed to delete user"):
+--   admin_delete_profile reclaims phones via
+--     UPDATE phones SET status='in_stock' WHERE assigned_to=p_user_id
+--   but the status transition trigger (Section 3) was blocking
+--   assigned → in_stock as an invalid transition. Section 3 above
+--   now includes that transition. Both fixes are required.
+--
+-- Cascade chain on DELETE profiles:
+--   → sales (ON DELETE CASCADE) → receipts via sale_id (CASCADE)
+--   → returns (ON DELETE CASCADE)
+--   → payroll_configs (ON DELETE CASCADE)
+--   → payroll_targets (ON DELETE CASCADE)
+--   → phones.assigned_to/updated_by (ON DELETE SET NULL)
+--   → activity_log.agent_id/team_lead_id (ON DELETE SET NULL)
+--   → payroll_entries.employee_id (ON DELETE SET NULL — Section 8)
+--
+-- WARNING: sales.sold_by ON DELETE CASCADE means all sales records
+-- for this agent are permanently erased. If financial history must
+-- be preserved, suspend the agent (status='inactive') instead of
+-- deleting them.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.admin_delete_profile(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NOT is_admin() THEN
+    RAISE EXCEPTION 'permission denied: admin only' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user_id) THEN
+    RAISE EXCEPTION 'user not found: %', p_user_id USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Return all phones held by this user to warehouse stock.
+  -- assigned → in_stock is now a valid transition (Section 3).
+  UPDATE public.phones
+     SET status      = 'in_stock',
+         assigned_to = NULL,
+         assigned_at = NULL
+   WHERE assigned_to = p_user_id;
+
+  -- Detach any agents who reported to this team lead.
+  UPDATE public.profiles
+     SET team_lead_id = NULL
+   WHERE team_lead_id = p_user_id;
+
+  -- Delete the profile row. FKs handle the rest via CASCADE / SET NULL.
+  DELETE FROM public.profiles WHERE id = p_user_id;
+END;
+$$;
+
+REVOKE ALL     ON FUNCTION public.admin_delete_profile(uuid) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.admin_delete_profile(uuid) TO authenticated;
 
 
 -- ============================================================
