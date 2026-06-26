@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
 import { useReturns, STOCK_RETURN_REASONS } from '../../hooks/useReturns'
@@ -15,7 +15,76 @@ import toast from 'react-hot-toast'
 import {
   MdPhoneAndroid, MdLogout, MdCheckCircle, MdUndo,
   MdSell, MdWarning, MdGroup, MdStorefront, MdAccessTime,
+  MdSearch, MdClose,
 } from 'react-icons/md'
+
+const PAGE_SIZE = 10
+
+function matchesSearch(phone: Phone, q: string): boolean {
+  if (!q.trim()) return true
+  const term = q.toLowerCase().trim()
+  return (
+    phone.model.toLowerCase().includes(term) ||
+    (phone.imei?.toLowerCase().includes(term) ?? false) ||
+    (phone.barcode?.toLowerCase().includes(term) ?? false) ||
+    phone.serial_number.toLowerCase().includes(term)
+  )
+}
+
+function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted pointer-events-none" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search by IMEI, model, barcode…"
+        className="w-full pl-9 pr-9 py-2.5 text-sm border border-brand-border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-text"
+          aria-label="Clear search"
+        >
+          <MdClose className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Pagination({ page, total, pageSize, onChange }: {
+  page: number; total: number; pageSize: number; onChange: (p: number) => void
+}) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const start = (page - 1) * pageSize + 1
+  const end   = Math.min(page * pageSize, total)
+  return (
+    <div className="flex items-center justify-between mt-3 px-1">
+      <button
+        onClick={() => onChange(page - 1)}
+        disabled={page === 1}
+        className="px-3 py-1.5 text-xs font-semibold text-primary border border-primary/30 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-pale transition-colors"
+      >
+        ← Prev
+      </button>
+      <span className="text-xs text-brand-muted font-medium tabular-nums">
+        {start}–{end} of {total}
+      </span>
+      <button
+        onClick={() => onChange(page + 1)}
+        disabled={page === totalPages}
+        className="px-3 py-1.5 text-xs font-semibold text-primary border border-primary/30 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-pale transition-colors"
+      >
+        Next →
+      </button>
+    </div>
+  )
+}
 
 function daysHeld(phone: Phone): number {
   if (!phone.assigned_at) return 0
@@ -56,7 +125,6 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
     <Modal isOpen onClose={onClose} title="Return Phone">
       <div className="space-y-4">
 
-        {/* Phone info */}
         <div className="bg-brand-bg rounded-card p-4 flex items-center gap-3 border border-brand-border">
           <div className="bg-primary-pale rounded-xl p-2.5 flex-shrink-0">
             <MdPhoneAndroid className="w-5 h-5 text-primary" />
@@ -68,7 +136,6 @@ function ReturnModal({ phone, hasTeamLead, onSubmitToStore, onReturnToTL, onClos
           </div>
         </div>
 
-        {/* Target selection */}
         {hasTeamLead && (
           <div>
             <p className="text-sm font-medium text-brand-text mb-2">Where are you returning this?</p>
@@ -200,7 +267,6 @@ function PhoneCard({ phone, hasTeamLead, staleDays, onSell, onReturn }: {
   return (
     <div className={`bg-white rounded-2xl border border-brand-border border-l-4 ${accentBorder} overflow-hidden transition-shadow hover:shadow-md ${isSold ? 'opacity-70' : ''}`}>
 
-      {/* Stale banner */}
       {stale && (
         <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 border-b border-orange-100">
           <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse flex-shrink-0" />
@@ -212,7 +278,7 @@ function PhoneCard({ phone, hasTeamLead, staleDays, onSell, onReturn }: {
         </div>
       )}
 
-      <div className="p-4">
+      <div className="p-3.5">
         <div className="flex items-start gap-3">
           <div className={`${iconBg} rounded-xl p-2.5 flex-shrink-0`}>
             <MdPhoneAndroid className={`w-5 h-5 ${iconColor}`} />
@@ -240,19 +306,18 @@ function PhoneCard({ phone, hasTeamLead, staleDays, onSell, onReturn }: {
           )}
         </div>
 
-        {/* Action buttons */}
         {isAssigned && (
-          <div className="grid grid-cols-2 gap-2.5 mt-4">
+          <div className="grid grid-cols-2 gap-2.5 mt-3.5">
             <button
               onClick={() => onSell(phone)}
-              className="flex items-center justify-center gap-2 bg-success hover:bg-green-700 active:scale-[0.97] text-white font-bold rounded-xl py-3.5 text-sm transition-all shadow-sm"
+              className="flex items-center justify-center gap-2 bg-success hover:bg-green-700 active:scale-[0.97] text-white font-bold rounded-xl py-3 text-sm transition-all shadow-sm"
             >
               <MdSell className="w-4 h-4" />
               Mark as Sold
             </button>
             <button
               onClick={() => onReturn(phone)}
-              className={`flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.97] ${
+              className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition-all active:scale-[0.97] ${
                 stale
                   ? 'bg-orange-50 border-2 border-orange-400 text-orange-700 hover:bg-orange-100'
                   : 'bg-white border border-brand-border hover:border-primary/40 hover:bg-primary-pale text-brand-muted hover:text-primary'
@@ -295,11 +360,30 @@ export default function AgentDashboard() {
   const [returningPhone, setReturningPhone] = useState<Phone | null>(null)
   const [saleResult,     setSaleResult]     = useState<{ receipt: Receipt; pdfBlob: Blob } | null>(null)
 
+  const [searchQuery,  setSearchQuery]  = useState('')
+  const [assignedPage, setAssignedPage] = useState(1)
+  const [soldPage,     setSoldPage]     = useState(1)
+  const [returnPage,   setReturnPage]   = useState(1)
+
+  useEffect(() => {
+    setAssignedPage(1)
+    setSoldPage(1)
+    setReturnPage(1)
+  }, [searchQuery])
+
   const hasTeamLead = !!profile?.team_lead_id
   const assigned    = phones.filter((p) => p.status === 'assigned')
   const inReturn    = phones.filter((p) => p.status === 'returned')
   const sold        = phones.filter((p) => p.status === 'sold')
   const staleCount  = assigned.filter((phone) => isStale(phone, staleSettings.agentDays)).length
+
+  const filteredAssigned = assigned.filter((p) => matchesSearch(p, searchQuery))
+  const filteredInReturn = inReturn.filter((p) => matchesSearch(p, searchQuery))
+  const filteredSold     = sold.filter((p) => matchesSearch(p, searchQuery))
+
+  const pagedAssigned = filteredAssigned.slice((assignedPage - 1) * PAGE_SIZE, assignedPage * PAGE_SIZE)
+  const pagedInReturn = filteredInReturn.slice((returnPage - 1) * PAGE_SIZE, returnPage * PAGE_SIZE)
+  const pagedSold     = filteredSold.slice((soldPage - 1) * PAGE_SIZE, soldPage * PAGE_SIZE)
 
   const initials = (profile?.full_name ?? 'A')
     .split(' ')
@@ -328,6 +412,10 @@ export default function AgentDashboard() {
     setReturningPhone(null)
   }
 
+  const hasPhones    = phones.length > 0
+  const noResults    = searchQuery.trim() !== '' &&
+    filteredAssigned.length === 0 && filteredInReturn.length === 0 && filteredSold.length === 0
+
   return (
     <div className="min-h-screen bg-brand-bg">
 
@@ -335,7 +423,6 @@ export default function AgentDashboard() {
       <header className="sticky top-0 z-20 bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
         <div className="pt-safe-top px-5 pb-5">
 
-          {/* Top row */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-white/20 border border-white/25 flex items-center justify-center font-extrabold text-base flex-shrink-0">
@@ -382,11 +469,16 @@ export default function AgentDashboard() {
         </div>
       </header>
 
-      <div className="px-4 pt-5 pb-28 max-w-lg mx-auto space-y-6">
+      <div className="px-4 pt-4 pb-28 max-w-lg mx-auto space-y-5">
+
+        {/* IMEI / model search */}
+        {hasPhones && !loading && (
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        )}
 
         {loading ? (
           <div className="flex justify-center py-16"><Spinner size="lg" /></div>
-        ) : phones.length === 0 ? (
+        ) : !hasPhones ? (
           <div className="bg-white rounded-2xl border border-brand-border p-12 text-center mt-4">
             <div className="w-16 h-16 bg-primary-pale rounded-2xl flex items-center justify-center mx-auto mb-4">
               <MdPhoneAndroid className="w-8 h-8 text-primary/40" />
@@ -396,10 +488,22 @@ export default function AgentDashboard() {
               Your team lead or admin will assign phones to you shortly.
             </p>
           </div>
+        ) : noResults ? (
+          <div className="bg-white rounded-2xl border border-brand-border p-10 text-center">
+            <MdSearch className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="font-semibold text-brand-text">No phones match "{searchQuery}"</p>
+            <p className="text-sm text-brand-muted mt-1">Try a different IMEI, model name, or barcode.</p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mt-3 text-sm text-primary font-semibold hover:underline"
+            >
+              Clear search
+            </button>
+          </div>
         ) : (
           <>
-            {/* Stale warning banner */}
-            {staleCount > 0 && (
+            {/* Stale warning */}
+            {staleCount > 0 && !searchQuery && (
               <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-2xl p-4">
                 <MdAccessTime className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
                 <div>
@@ -415,13 +519,13 @@ export default function AgentDashboard() {
             )}
 
             {/* Active phones */}
-            {assigned.length > 0 && (
+            {filteredAssigned.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold text-brand-muted uppercase tracking-widest mb-3">
-                  Active — {assigned.length}
+                  Active — {filteredAssigned.length}{searchQuery && assigned.length !== filteredAssigned.length ? ` of ${assigned.length}` : ''}
                 </h2>
                 <div className="space-y-3">
-                  {assigned.map((phone) => (
+                  {pagedAssigned.map((phone) => (
                     <PhoneCard
                       key={phone.id}
                       phone={phone}
@@ -432,17 +536,23 @@ export default function AgentDashboard() {
                     />
                   ))}
                 </div>
+                <Pagination
+                  page={assignedPage}
+                  total={filteredAssigned.length}
+                  pageSize={PAGE_SIZE}
+                  onChange={setAssignedPage}
+                />
               </section>
             )}
 
             {/* Pending returns */}
-            {inReturn.length > 0 && (
+            {filteredInReturn.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-3">
-                  Pending Return — {inReturn.length}
+                  Pending Return — {filteredInReturn.length}{searchQuery && inReturn.length !== filteredInReturn.length ? ` of ${inReturn.length}` : ''}
                 </h2>
                 <div className="space-y-3">
-                  {inReturn.map((phone) => (
+                  {pagedInReturn.map((phone) => (
                     <PhoneCard
                       key={phone.id}
                       phone={phone}
@@ -453,17 +563,23 @@ export default function AgentDashboard() {
                     />
                   ))}
                 </div>
+                <Pagination
+                  page={returnPage}
+                  total={filteredInReturn.length}
+                  pageSize={PAGE_SIZE}
+                  onChange={setReturnPage}
+                />
               </section>
             )}
 
             {/* Sold */}
-            {sold.length > 0 && (
+            {filteredSold.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold text-brand-muted uppercase tracking-widest mb-3">
-                  Sold — {sold.length}
+                  Sold — {filteredSold.length}{searchQuery && sold.length !== filteredSold.length ? ` of ${sold.length}` : ''}
                 </h2>
                 <div className="space-y-3">
-                  {sold.map((phone) => (
+                  {pagedSold.map((phone) => (
                     <PhoneCard
                       key={phone.id}
                       phone={phone}
@@ -474,6 +590,12 @@ export default function AgentDashboard() {
                     />
                   ))}
                 </div>
+                <Pagination
+                  page={soldPage}
+                  total={filteredSold.length}
+                  pageSize={PAGE_SIZE}
+                  onChange={setSoldPage}
+                />
               </section>
             )}
           </>

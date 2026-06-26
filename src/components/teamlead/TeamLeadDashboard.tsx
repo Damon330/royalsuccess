@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usePhones } from '../../hooks/usePhones'
 import { useReturns, STOCK_RETURN_REASONS } from '../../hooks/useReturns'
@@ -15,8 +15,76 @@ import Spinner from '../shared/Spinner'
 import toast from 'react-hot-toast'
 import {
   MdPhoneAndroid, MdLogout, MdWarning, MdUndo, MdCheckCircle,
-  MdCancel, MdSell, MdAccessTime,
+  MdCancel, MdSell, MdAccessTime, MdSearch, MdClose,
 } from 'react-icons/md'
+
+const PAGE_SIZE = 10
+
+function matchesSearch(phone: Phone, q: string): boolean {
+  if (!q.trim()) return true
+  const term = q.toLowerCase().trim()
+  return (
+    phone.model.toLowerCase().includes(term) ||
+    (phone.imei?.toLowerCase().includes(term) ?? false) ||
+    (phone.barcode?.toLowerCase().includes(term) ?? false) ||
+    phone.serial_number.toLowerCase().includes(term)
+  )
+}
+
+function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-muted pointer-events-none" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search by IMEI, model, barcode…"
+        className="w-full pl-9 pr-9 py-2.5 text-sm border border-brand-border rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-muted hover:text-brand-text"
+          aria-label="Clear search"
+        >
+          <MdClose className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Pagination({ page, total, pageSize, onChange }: {
+  page: number; total: number; pageSize: number; onChange: (p: number) => void
+}) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const start = (page - 1) * pageSize + 1
+  const end   = Math.min(page * pageSize, total)
+  return (
+    <div className="flex items-center justify-between mt-3 px-1">
+      <button
+        onClick={() => onChange(page - 1)}
+        disabled={page === 1}
+        className="px-3 py-1.5 text-xs font-semibold text-primary border border-primary/30 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-pale transition-colors"
+      >
+        ← Prev
+      </button>
+      <span className="text-xs text-brand-muted font-medium tabular-nums">
+        {start}–{end} of {total}
+      </span>
+      <button
+        onClick={() => onChange(page + 1)}
+        disabled={page === totalPages}
+        className="px-3 py-1.5 text-xs font-semibold text-primary border border-primary/30 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-pale transition-colors"
+      >
+        Next →
+      </button>
+    </div>
+  )
+}
 
 function daysHeld(phone: Phone): number {
   if (!phone.assigned_at) return 0
@@ -135,10 +203,18 @@ export default function TeamLeadDashboard() {
   const [rejectingRet,   setRejectingRet]   = useState<PhoneReturn | null>(null)
   const [approving,      setApproving]      = useState<string | null>(null)
 
-  const pendingReturns = returns.filter((r) => r.return_status === 'PENDING')
-  const mySold         = myPhones.filter((p) => p.status === 'sold').length
-  const myActive       = myPhones.filter((p) => p.status === 'assigned')
-  const staleCount     = myActive.filter((p) => daysHeld(p) > staleSettings.teamLeadDays).length
+  const [searchQuery, setSearchQuery] = useState('')
+  const [stockPage,   setStockPage]   = useState(1)
+
+  useEffect(() => { setStockPage(1) }, [searchQuery])
+
+  const pendingReturns  = returns.filter((r) => r.return_status === 'PENDING')
+  const mySold          = myPhones.filter((p) => p.status === 'sold').length
+  const myActive        = myPhones.filter((p) => p.status === 'assigned')
+  const staleCount      = myActive.filter((p) => daysHeld(p) > staleSettings.teamLeadDays).length
+
+  const filteredPhones  = myPhones.filter((p) => matchesSearch(p, searchQuery))
+  const pagedPhones     = filteredPhones.slice((stockPage - 1) * PAGE_SIZE, stockPage * PAGE_SIZE)
 
   const initials = (profile?.full_name ?? 'T')
     .split(' ')
@@ -169,7 +245,6 @@ export default function TeamLeadDashboard() {
       <header className="sticky top-0 z-20 bg-gradient-to-br from-primary-dark via-primary to-primary-light text-white">
         <div className="pt-safe-top px-5 pb-5">
 
-          {/* Top row */}
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-white/20 border border-white/25 flex items-center justify-center font-extrabold text-base flex-shrink-0">
@@ -192,7 +267,6 @@ export default function TeamLeadDashboard() {
             </div>
           </div>
 
-          {/* Stats pills */}
           <div className={`grid gap-2 ${staleCount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             <div className="bg-white/15 backdrop-blur-sm rounded-xl p-2.5 text-center border border-white/10">
               <p className="text-xl font-extrabold tabular-nums">{myPhones.length}</p>
@@ -227,7 +301,7 @@ export default function TeamLeadDashboard() {
           </div>
         )}
 
-        {/* Pending Returns */}
+        {/* Pending Returns from agents */}
         {pendingReturns.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -291,11 +365,25 @@ export default function TeamLeadDashboard() {
           </section>
         )}
 
-        {/* My Phones */}
+        {/* My Stock */}
         <section>
-          <h2 className="text-xs font-bold text-brand-muted uppercase tracking-widest mb-3">
-            My Stock
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold text-brand-muted uppercase tracking-widest">
+              My Stock{myPhones.length > 0 ? ` — ${myPhones.length}` : ''}
+            </h2>
+            {searchQuery && (
+              <span className="text-xs text-brand-muted">
+                {filteredPhones.length} result{filteredPhones.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {/* IMEI / model search */}
+          {myPhones.length > 0 && !phonesLoading && (
+            <div className="mb-3">
+              <SearchBar value={searchQuery} onChange={setSearchQuery} />
+            </div>
+          )}
 
           {phonesLoading ? (
             <div className="flex justify-center py-8"><Spinner /></div>
@@ -307,72 +395,92 @@ export default function TeamLeadDashboard() {
               <p className="font-semibold text-brand-text">No phones in your stock</p>
               <p className="text-sm text-brand-muted mt-1">Admin will assign phones to you soon.</p>
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              {myPhones.map((phone) => {
-                const heldDays = daysHeld(phone)
-                const days  = Math.floor(heldDays)
-                const stale = phone.status === 'assigned' && heldDays > staleSettings.teamLeadDays
-
-                return (
-                  <div
-                    key={phone.id}
-                    className={`bg-white rounded-2xl border border-l-4 overflow-hidden transition-shadow hover:shadow-md ${
-                      phone.status === 'sold'
-                        ? 'border-brand-border border-l-gray-300 opacity-70'
-                        : stale
-                        ? 'border-brand-border border-l-orange-400'
-                        : 'border-brand-border border-l-primary'
-                    }`}
-                  >
-                    {stale && (
-                      <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-50 border-b border-orange-100">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse flex-shrink-0" />
-                        <MdAccessTime className="w-3 h-3 text-orange-500 flex-shrink-0" />
-                        <p className="text-[11px] font-semibold text-orange-700">Overdue — {days}d (limit: {staleSettings.teamLeadDays}d)</p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-3 p-4">
-                      <div className={`rounded-xl p-2 flex-shrink-0 ${
-                        phone.status === 'sold' ? 'bg-brand-bg' : stale ? 'bg-warning/10' : 'bg-primary-pale'
-                      }`}>
-                        <MdPhoneAndroid className={`w-5 h-5 ${
-                          phone.status === 'sold' ? 'text-gray-400' : stale ? 'text-orange-500' : 'text-primary'
-                        }`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-brand-text truncate">{phone.model}</p>
-                        {phone.imei
-                          ? <p className="text-xs font-mono text-brand-muted truncate">IMEI: {phone.imei}</p>
-                          : <p className="text-xs font-mono text-brand-muted truncate">SN: {phone.serial_number}</p>
-                        }
-                      </div>
-
-                      {phone.status === 'assigned' ? (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Button size="sm" variant="success" onClick={() => setSellingPhone(phone)}>
-                            <MdSell className="w-3.5 h-3.5 mr-1" />
-                            Sell
-                          </Button>
-                          <button
-                            onClick={() => setReturningPhone(phone)}
-                            className="flex items-center justify-center w-9 h-9 bg-brand-bg hover:bg-warning/10 hover:text-warning text-brand-muted border border-brand-border hover:border-warning/50 rounded-xl transition-colors"
-                            title="Return to store"
-                          >
-                            <MdUndo className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <Badge variant={phone.status === 'sold' ? 'green' : 'gray'}>
-                          {phone.status === 'sold' ? 'Sold' : phone.status}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+          ) : filteredPhones.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-brand-border p-8 text-center">
+              <MdSearch className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+              <p className="font-semibold text-brand-text text-sm">No phones match "{searchQuery}"</p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-2 text-xs text-primary font-semibold hover:underline"
+              >
+                Clear search
+              </button>
             </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {pagedPhones.map((phone) => {
+                  const heldDays = daysHeld(phone)
+                  const days  = Math.floor(heldDays)
+                  const stale = phone.status === 'assigned' && heldDays > staleSettings.teamLeadDays
+
+                  return (
+                    <div
+                      key={phone.id}
+                      className={`bg-white rounded-2xl border border-l-4 overflow-hidden transition-shadow hover:shadow-md ${
+                        phone.status === 'sold'
+                          ? 'border-brand-border border-l-gray-300 opacity-70'
+                          : stale
+                          ? 'border-brand-border border-l-orange-400'
+                          : 'border-brand-border border-l-primary'
+                      }`}
+                    >
+                      {stale && (
+                        <div className="flex items-center gap-2 px-4 py-1.5 bg-orange-50 border-b border-orange-100">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse flex-shrink-0" />
+                          <MdAccessTime className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                          <p className="text-[11px] font-semibold text-orange-700">Overdue — {days}d (limit: {staleSettings.teamLeadDays}d)</p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-3 p-3.5">
+                        <div className={`rounded-xl p-2 flex-shrink-0 ${
+                          phone.status === 'sold' ? 'bg-brand-bg' : stale ? 'bg-warning/10' : 'bg-primary-pale'
+                        }`}>
+                          <MdPhoneAndroid className={`w-5 h-5 ${
+                            phone.status === 'sold' ? 'text-gray-400' : stale ? 'text-orange-500' : 'text-primary'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-brand-text truncate">{phone.model}</p>
+                          {phone.imei
+                            ? <p className="text-xs font-mono text-brand-muted truncate">IMEI: {phone.imei}</p>
+                            : <p className="text-xs font-mono text-brand-muted truncate">SN: {phone.serial_number}</p>
+                          }
+                        </div>
+
+                        {phone.status === 'assigned' ? (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Button size="sm" variant="success" onClick={() => setSellingPhone(phone)}>
+                              <MdSell className="w-3.5 h-3.5 mr-1" />
+                              Sell
+                            </Button>
+                            <button
+                              onClick={() => setReturningPhone(phone)}
+                              className="flex items-center justify-center w-9 h-9 bg-brand-bg hover:bg-warning/10 hover:text-warning text-brand-muted border border-brand-border hover:border-warning/50 rounded-xl transition-colors"
+                              title="Return to store"
+                            >
+                              <MdUndo className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <Badge variant={phone.status === 'sold' ? 'green' : 'gray'}>
+                            {phone.status === 'sold' ? 'Sold' : phone.status}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <Pagination
+                page={stockPage}
+                total={filteredPhones.length}
+                pageSize={PAGE_SIZE}
+                onChange={setStockPage}
+              />
+            </>
           )}
         </section>
       </div>
