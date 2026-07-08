@@ -113,6 +113,78 @@ CREATE POLICY "profiles_self_update" ON public.profiles
   USING (auth.uid() = id)
   WITH CHECK (public.profile_self_update_allowed(id, role, status, team_lead_id));
 
+-- ---------- Notification helpers required by sale/return RPCs ----------
+-- Keep these here so this hardening script is safe even when older installs
+-- missed migration-v4 or v2-full-migration notification helpers.
+CREATE OR REPLACE FUNCTION public.send_notification(
+  p_recipient_id uuid,
+  p_type text,
+  p_title text,
+  p_body text,
+  p_sale_id uuid DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_recipient_id) THEN
+    RETURN;
+  END IF;
+
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id, read)
+  VALUES (p_recipient_id, p_type, p_title, p_body, p_sale_id, false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.send_notification(uuid, text, text, text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.send_notification(uuid, text, text, text, uuid) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.notify_on_sale(
+  p_sale_id uuid,
+  p_agent_id uuid,
+  p_agent_name text,
+  p_phone_label text,
+  p_amount numeric,
+  p_payment text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_title text := 'New Sale by ' || p_agent_name;
+  v_body text := p_phone_label || ' sold for NGN ' ||
+                 to_char(p_amount, 'FM999,999,999') || ' (' || p_payment || ')';
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'unauthenticated' USING ERRCODE = '42501';
+  END IF;
+
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id, read)
+  SELECT id, 'SALE_COMPLETED', v_title, v_body, p_sale_id, false
+  FROM public.profiles
+  WHERE role = 'admin'
+    AND status = 'active'
+    AND id <> p_agent_id;
+
+  INSERT INTO public.notifications (recipient_id, type, title, body, sale_id, read)
+  SELECT team_lead_id, 'SALE_COMPLETED', v_title, v_body, p_sale_id, false
+  FROM public.profiles
+  WHERE id = p_agent_id
+    AND team_lead_id IS NOT NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.notify_on_sale(uuid, uuid, text, text, numeric, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.notify_on_sale(uuid, uuid, text, text, numeric, text) TO authenticated;
+
 -- ---------- Atomic sale completion ----------
 CREATE OR REPLACE FUNCTION public.complete_phone_sale(
   p_phone_id uuid,
