@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme tokens ──────────────────────────────────────────────────────────── */
+:root {
+  /* LIGHT MODE — pale mint canvas */
+  --color-bg:      #E9F0EA;
+  --color-surface: #FFFFFF;
+  --color-border:  #D8E6DA;
+  --color-text:    #1F2A22;
+  --color-muted:   #6B7A6E;
+  --color-label:   #9AA89C;
+  --color-sidebar: #E9F0EA;
+}
+
+html.dark {
+  /* DARK MODE — deep forest green */
+  --color-bg:      #16241A;
+  --color-surface: #1E3024;
+  --color-border:  #2A4030;
+  --color-text:    #EAF1EB;
+  --color-muted:   #9FB0A2;
+  --color-label:   #6B8070;
+  --color-sidebar: #16241A;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+@layer base {
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', Inter, system-ui, sans-serif;
+    @apply bg-brand-bg text-brand-text;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  :focus-visible {
+    outline: 2px solid #84B84C;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+/* ── Components ────────────────────────────────────────────────────────────── */
+@layer components {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top    { padding-top:    env(safe-area-inset-top);    }
+
+  /* Glass blur for sticky header */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+  }
+
+  /* Base input */
+  .input-base {
+    @apply w-full bg-brand-surface border border-brand-border
+           px-4 py-3 text-sm text-brand-text placeholder:text-brand-muted
+           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50
+           transition-all duration-150;
+    border-radius: 12px;
+  }
+
+  /* Soft scrollbar */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-brand-border rounded-full; }
+
+  /* Card utility */
+  .card {
+    @apply bg-brand-surface;
+    border-radius: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  /* Section label (MAIN / OTHER etc.) */
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-label;
+  }
+}
+
+/* ── Gradient utilities ────────────────────────────────────────────────────── */
+
+/* Gradient name text — green → pink in light, bright in dark */
+.text-gradient-brand {
+  background: linear-gradient(90deg, #84B84C 0%, #E8559A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Primary bar/chart fill */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #B6D86B 0%, #4CA37A 100%);
+}
+
+/* Welcome banner bg */
+.bg-gradient-banner {
+  background: linear-gradient(135deg, #3A7D44 0%, #4CA37A 50%, #84B84C 100%);
+}
+
+/* Trend pills */
+.trend-up   { @apply bg-positive/10 text-positive   dark:bg-positive/15; }
+.trend-down { @apply bg-negative/10 text-negative    dark:bg-negative/15; }

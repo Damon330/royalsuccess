@@ -1,0 +1,567 @@
+import { useState, useCallback, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { withTimeout } from '../lib/withTimeout'
+import { useErrorLog, clearErrorLog } from '../lib/errorLog'
+import Header from '../components/shared/Header'
+import Spinner from '../components/shared/Spinner'
+import {
+  MdCheckCircle, MdError, MdWarning, MdHelpOutline,
+  MdRefresh, MdContentCopy, MdDelete, MdExpandMore, MdExpandLess, MdLogout,
+} from 'react-icons/md'
+import toast from 'react-hot-toast'
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type Status = 'pending' | 'running' | 'ok' | 'warn' | 'error'
+
+interface Check {
+  id:        string
+  label:     string
+  group:     string
+  status:    Status
+  latencyMs: number | null
+  detail:    string | null
+  raw?:      unknown
+}
+
+// ── Status icon ────────────────────────────────────────────────────────────────
+
+function StatusIcon({ status }: { status: Status }) {
+  if (status === 'running') return <Spinner size="sm" />
+  if (status === 'ok')      return <MdCheckCircle className="w-4 h-4 text-positive flex-shrink-0" />
+  if (status === 'warn')    return <MdWarning     className="w-4 h-4 text-accent flex-shrink-0" />
+  if (status === 'error')   return <MdError       className="w-4 h-4 text-negative flex-shrink-0" />
+  return <MdHelpOutline className="w-4 h-4 text-brand-muted flex-shrink-0" />
+}
+
+// ── Check row ─────────────────────────────────────────────────────────────────
+
+function CheckRow({ check }: { check: Check }) {
+  const [expanded, setExpanded] = useState(check.status === 'error')
+
+  useEffect(() => {
+    if (check.status === 'error') setExpanded(true)
+  }, [check.status])
+
+  const rowBg =
+    check.status === 'ok'    ? 'bg-positive/5 border-positive/20' :
+    check.status === 'error' ? 'bg-negative/5 border-negative/20' :
+    check.status === 'warn'  ? 'bg-accent/5 border-accent/20'     :
+    'bg-brand-surface border-brand-border'
+
+  return (
+    <div className={`rounded-xl border ${rowBg} overflow-hidden`}>
+      <div
+        className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+        onClick={() => setExpanded(v => !v)}
+      >
+        <StatusIcon status={check.status} />
+
+        <span className="flex-1 text-sm font-mono font-medium text-brand-text truncate">
+          {check.label}
+        </span>
+
+        {check.latencyMs !== null && (
+          <span className="text-xs text-brand-muted tabular-nums flex-shrink-0">
+            {check.latencyMs}ms
+          </span>
+        )}
+
+        <button className="text-brand-muted flex-shrink-0">
+          {expanded ? <MdExpandLess className="w-4 h-4" /> : <MdExpandMore className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {expanded && check.detail && (
+        <div className="px-4 pb-3 pt-0 border-t border-brand-border/50">
+          <p className="text-xs font-mono text-brand-muted break-all whitespace-pre-wrap leading-relaxed">
+            {check.detail}
+          </p>
+          {check.raw !== undefined && (
+            <details className="mt-2">
+              <summary className="text-xs text-brand-muted cursor-pointer hover:text-brand-text">
+                Raw response
+              </summary>
+              <pre className="mt-1 text-xs font-mono text-brand-muted bg-brand-bg rounded-lg p-3 overflow-x-auto">
+                {JSON.stringify(check.raw, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Initial checks skeleton ────────────────────────────────────────────────────
+
+function makeChecks(): Check[] {
+  return [
+    // Environment
+    { id: 'env_url',       group: 'Environment',           label: 'VITE_SUPABASE_URL',          status: 'pending', latencyMs: null, detail: null },
+    { id: 'env_key',       group: 'Environment',           label: 'VITE_SUPABASE_ANON_KEY',     status: 'pending', latencyMs: null, detail: null },
+    { id: 'env_admin',     group: 'Environment',           label: 'VITE_ADMIN_EMAIL',            status: 'pending', latencyMs: null, detail: null },
+    // Auth
+    { id: 'auth_session',  group: 'Authentication',        label: 'Auth Session',                status: 'pending', latencyMs: null, detail: null },
+    { id: 'auth_match',    group: 'Authentication',        label: 'Admin Email Match (frontend)', status: 'pending', latencyMs: null, detail: null },
+    // Health RPC
+    { id: 'rpc_health',    group: 'Database — Health RPC', label: 'health_check()',              status: 'pending', latencyMs: null, detail: null },
+    // Admin RPCs
+    { id: 'rpc_phones',    group: 'Database — Admin RPCs', label: 'admin_get_phones()',          status: 'pending', latencyMs: null, detail: null },
+    { id: 'rpc_profiles',  group: 'Database — Admin RPCs', label: 'admin_get_profiles()',        status: 'pending', latencyMs: null, detail: null },
+    { id: 'rpc_stats',     group: 'Database — Admin RPCs', label: 'admin_dashboard_stats()',     status: 'pending', latencyMs: null, detail: null },
+    { id: 'rpc_team',      group: 'Database — Admin RPCs', label: 'admin_team_overview()',       status: 'pending', latencyMs: null, detail: null },
+    { id: 'rpc_stale',     group: 'Database — Admin RPCs', label: 'admin_stale_alerts()',        status: 'pending', latencyMs: null, detail: null },
+    // Direct table access (compare with RPC to isolate RLS vs RPC issues)
+    { id: 'tbl_profiles',  group: 'Direct Table (RLS)',    label: 'SELECT FROM profiles',        status: 'pending', latencyMs: null, detail: null },
+    { id: 'tbl_phones',    group: 'Direct Table (RLS)',    label: 'SELECT FROM phones',          status: 'pending', latencyMs: null, detail: null },
+  ]
+}
+
+// ── Run all checks ─────────────────────────────────────────────────────────────
+
+async function executeChecks(
+  _checks: Check[],
+  update: (id: string, patch: Partial<Check>) => void,
+  onSessionStuck?: () => void,
+) {
+  // ── Environment (synchronous) ──────────────────────────────────────
+  update('env_url', {
+    status: import.meta.env.VITE_SUPABASE_URL ? 'ok' : 'error',
+    detail: import.meta.env.VITE_SUPABASE_URL
+      ? String(import.meta.env.VITE_SUPABASE_URL)
+      : 'MISSING — app cannot connect to Supabase. Add VITE_SUPABASE_URL to .env',
+  })
+
+  update('env_key', {
+    status: import.meta.env.VITE_SUPABASE_ANON_KEY ? 'ok' : 'error',
+    detail: import.meta.env.VITE_SUPABASE_ANON_KEY
+      ? `eyJ... (${String(import.meta.env.VITE_SUPABASE_ANON_KEY).length} chars)`
+      : 'MISSING — add VITE_SUPABASE_ANON_KEY to .env',
+  })
+
+  const adminEmailEnv = String(import.meta.env.VITE_ADMIN_EMAIL ?? '')
+  update('env_admin', {
+    status: adminEmailEnv ? 'ok' : 'warn',
+    detail: adminEmailEnv
+      ? adminEmailEnv
+      : 'Not set — admin still works (DB uses profiles.role=admin), but set VITE_ADMIN_EMAIL in Vercel to suppress this warning.',
+  })
+
+  // ── Auth session ──────────────────────────────────────────────────
+  // getSession() triggers a token refresh when the access token is expired.
+  // On Supabase free-tier, GoTrue (auth service) can take 20–30 s to wake
+  // from sleep — this is normal and NOT a "stuck JWT". We race at 40 s:
+  // anything faster than that is just the server starting up.
+  update('auth_session', { status: 'running' })
+  const tAuth = Date.now()
+  let sessionEmail: string | null = null
+
+  type GetSessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
+  try {
+    const raceResult = await Promise.race<GetSessionResult | 'TIMEOUT'>([
+      supabase.auth.getSession(),
+      new Promise<'TIMEOUT'>(resolve => setTimeout(() => resolve('TIMEOUT'), 40_000)),
+    ])
+
+    if (raceResult === 'TIMEOUT') {
+      const elapsed = Math.round((Date.now() - tAuth) / 1000)
+      onSessionStuck?.()
+      update('auth_session', {
+        status: 'error',
+        latencyMs: Date.now() - tAuth,
+        detail: [
+          `Auth service did not respond after ${elapsed}s.`,
+          '',
+          'This usually means your Supabase project is paused (free-tier projects',
+          'pause after 1 week of inactivity). Possible causes:',
+          '',
+          '1. PROJECT PAUSED → Go to supabase.com/dashboard, find your project,',
+          '   click "Resume project", wait 30 s, then Re-run checks.',
+          '',
+          '2. REFRESH TOKEN EXPIRED → Your session is older than 1 week.',
+          '   Click "Force Sign Out" above and sign in again.',
+          '',
+          '3. NETWORK ISSUE → Check your internet connection.',
+          '',
+          'Console command to clear session:',
+          'Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k));location.reload();',
+        ].join('\n'),
+      })
+      update('auth_match', { status: 'warn', detail: 'Cannot check — auth service did not respond in 40 s' })
+    } else {
+      const { data: { session }, error } = raceResult
+      const lat = Date.now() - tAuth
+      if (error || !session) {
+        update('auth_session', {
+          status: 'error',
+          latencyMs: lat,
+          detail: error?.message ?? 'No active session — sign out and sign back in',
+        })
+        update('auth_match', { status: 'warn', detail: 'Cannot check — no session' })
+      } else {
+        const expiresIn = (session.expires_at ?? 0) - Math.floor(Date.now() / 1000)
+        sessionEmail = session.user.email?.toLowerCase() ?? null
+        update('auth_session', {
+          status: expiresIn > 60 ? 'ok' : expiresIn > 0 ? 'warn' : 'error',
+          latencyMs: lat,
+          detail: expiresIn > 0
+            ? `${session.user.email}\nExpires in: ${Math.floor(expiresIn / 60)}m ${expiresIn % 60}s\nUser ID: ${session.user.id}`
+            : `TOKEN EXPIRED ${Math.abs(expiresIn)}s ago — sign out and sign back in`,
+          raw: {
+            email:      session.user.email,
+            user_id:    session.user.id,
+            expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+          },
+        })
+
+        if (!adminEmailEnv) {
+          update('auth_match', {
+            status: 'warn',
+            detail: `VITE_ADMIN_EMAIL is not set.\nAdmin access still works — the DB now uses profiles.role=admin, not email matching.\nSet VITE_ADMIN_EMAIL=${session.user.email} in Vercel env vars to clear this warning.`,
+          })
+        } else {
+          const matches = sessionEmail === adminEmailEnv.toLowerCase()
+          update('auth_match', {
+            status: matches ? 'ok' : 'warn',
+            detail: matches
+              ? `"${session.user.email}" matches VITE_ADMIN_EMAIL ✓`
+              : `Session email "${session.user.email}" ≠ VITE_ADMIN_EMAIL "${adminEmailEnv}"\nThis is a warning only — admin access is determined by profiles.role in the DB.\nUpdate VITE_ADMIN_EMAIL in Vercel to suppress this warning.`,
+          })
+        }
+      }
+    }
+  } catch (err) {
+    update('auth_session', { status: 'error', latencyMs: Date.now() - tAuth, detail: String(err) })
+    update('auth_match',   { status: 'warn',  detail: 'Cannot check — getSession() threw' })
+  }
+
+  // ── health_check() RPC ────────────────────────────────────────────
+  update('rpc_health', { status: 'running' })
+  const tH = Date.now()
+  try {
+    const { data, error } = await withTimeout(supabase.rpc('health_check'), 10_000)
+    const lat = Date.now() - tH
+    if (error) {
+      update('rpc_health', {
+        status: 'error', latencyMs: lat,
+        detail: `[${error.code ?? 'ERR'}] ${error.message}\nHint: ${error.hint ?? 'run v2-full-migration.sql'}`,
+      })
+    } else {
+      const hc = data as { ok?: boolean; is_admin?: boolean; auth_email?: string; ts?: number } | null
+      const isAdminOk = hc?.is_admin === true
+      update('rpc_health', {
+        status:    hc?.ok ? (isAdminOk ? 'ok' : 'warn') : 'error',
+        latencyMs: lat,
+        detail:    `ok=${hc?.ok}\nauth_email=${hc?.auth_email ?? 'null'}\nis_admin=${hc?.is_admin ?? 'null'}\nts=${hc?.ts ?? 'null'}\n\n${!isAdminOk && hc?.auth_email && hc.auth_email !== 'unauthenticated' ? `⚠ DB sees "${hc.auth_email}" — is_admin()=false. Sign out + sign in to refresh JWT.` : ''}`,
+        raw: hc,
+      })
+    }
+  } catch (err) {
+    update('rpc_health', { status: 'error', latencyMs: Date.now() - tH, detail: String(err) })
+  }
+
+  // ── Admin RPCs (parallel) ──────────────────────────────────────────
+  const rpcDefs = [
+    { id: 'rpc_phones',   fn: () => supabase.rpc('admin_get_phones')   },
+    { id: 'rpc_profiles', fn: () => supabase.rpc('admin_get_profiles') },
+    { id: 'rpc_stats',    fn: () => supabase.rpc('admin_dashboard_stats') },
+    { id: 'rpc_team',     fn: () => supabase.rpc('admin_team_overview') },
+    { id: 'rpc_stale',    fn: () => supabase.rpc('admin_stale_alerts', { p_agent_days: 3, p_teamlead_days: 14 }) },
+  ]
+
+  rpcDefs.forEach(r => update(r.id, { status: 'running' }))
+
+  await Promise.all(rpcDefs.map(async (r) => {
+    const t = Date.now()
+    try {
+      const { data, error } = await withTimeout(r.fn(), 30_000)
+      const lat = Date.now() - t
+      if (error) {
+        update(r.id, {
+          status: 'error', latencyMs: lat,
+          detail: `[${error.code ?? 'ERR'}] ${error.message}${error.hint ? '\nHint: ' + error.hint : ''}${error.details ? '\nDetails: ' + error.details : ''}`,
+          raw: { error },
+        })
+      } else {
+        const count = Array.isArray(data) ? data.length : null
+        update(r.id, {
+          status: 'ok', latencyMs: lat,
+          detail: count !== null
+            ? `${count} row(s) returned`
+            : `Result: ${JSON.stringify(data).slice(0, 200)}`,
+          raw: Array.isArray(data) ? data.slice(0, 3) : data,
+        })
+      }
+    } catch (err) {
+      update(r.id, { status: 'error', latencyMs: Date.now() - t, detail: String(err) })
+    }
+  }))
+
+  // ── Direct table access ────────────────────────────────────────────
+  const tblDefs = [
+    { id: 'tbl_profiles', table: 'profiles' },
+    { id: 'tbl_phones',   table: 'phones'   },
+  ]
+
+  tblDefs.forEach(r => update(r.id, { status: 'running' }))
+
+  await Promise.all(tblDefs.map(async (r) => {
+    const t = Date.now()
+    try {
+      const { count, data, error } = await withTimeout(
+        supabase.from(r.table).select('*', { count: 'exact', head: true }),
+        10_000,
+      )
+      const lat = Date.now() - t
+      if (error) {
+        update(r.id, {
+          status: 'error', latencyMs: lat,
+          detail: `[${error.code ?? 'ERR'}] ${error.message}${error.hint ? '\nHint: ' + error.hint : ''}`,
+        })
+      } else {
+        update(r.id, {
+          status: 'ok', latencyMs: lat,
+          detail: `${count ?? 0} row(s) visible to current session via RLS\n(Admin RPC would see all rows regardless of RLS)`,
+        })
+      }
+      void data
+    } catch (err) {
+      update(r.id, { status: 'error', latencyMs: Date.now() - t, detail: String(err) })
+    }
+  }))
+}
+
+// ── Group helper ───────────────────────────────────────────────────────────────
+
+function groupChecks(checks: Check[]) {
+  const groups: Record<string, Check[]> = {}
+  for (const c of checks) {
+    if (!groups[c.group]) groups[c.group] = []
+    groups[c.group].push(c)
+  }
+  return groups
+}
+
+// ── Summary counts ─────────────────────────────────────────────────────────────
+
+function SummaryBadge({ checks }: { checks: Check[] }) {
+  const errors  = checks.filter(c => c.status === 'error').length
+  const warns   = checks.filter(c => c.status === 'warn').length
+  const ok      = checks.filter(c => c.status === 'ok').length
+  const running = checks.some(c => c.status === 'running' || c.status === 'pending')
+
+  if (running) return <span className="text-xs text-brand-muted">Running…</span>
+
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold">
+      {errors > 0 && <span className="text-negative">{errors} error{errors !== 1 ? 's' : ''}</span>}
+      {warns  > 0 && <span className="text-accent">{warns} warning{warns !== 1 ? 's' : ''}</span>}
+      {ok     > 0 && <span className="text-positive">{ok} passed</span>}
+    </div>
+  )
+}
+
+// ── Copy report ────────────────────────────────────────────────────────────────
+
+function buildReport(checks: Check[]): string {
+  const lines: string[] = [
+    `Royal Success — Diagnostic Report`,
+    `Generated: ${new Date().toISOString()}`,
+    `URL: ${window.location.href}`,
+    '',
+  ]
+  const groups = groupChecks(checks)
+  for (const [group, items] of Object.entries(groups)) {
+    lines.push(`=== ${group} ===`)
+    for (const c of items) {
+      const icon = c.status === 'ok' ? '✓' : c.status === 'error' ? '✗' : c.status === 'warn' ? '!' : '?'
+      lines.push(`  [${icon}] ${c.label}${c.latencyMs !== null ? ` (${c.latencyMs}ms)` : ''}`)
+      if (c.detail) lines.push(`       ${c.detail.replace(/\n/g, '\n       ')}`)
+    }
+    lines.push('')
+  }
+  return lines.join('\n')
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
+
+export default function DiagnosticsPage() {
+  const [checks,       setChecks]       = useState<Check[]>(makeChecks)
+  const [running,      setRunning]      = useState(false)
+  const [sessionStuck, setSessionStuck] = useState(false)
+  const errorLog = useErrorLog()
+
+  function applyUpdate(id: string, patch: Partial<Check>) {
+    setChecks(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+  }
+
+  const run = useCallback(async () => {
+    const fresh = makeChecks()
+    setChecks(fresh)
+    setRunning(true)
+    setSessionStuck(false)
+    try {
+      await executeChecks(fresh, applyUpdate, () => setSessionStuck(true))
+    } finally {
+      setRunning(false)
+    }
+  }, [])
+
+  async function handleForceSignOut() {
+    try {
+      // scope: 'local' clears localStorage only — makes NO network call.
+      // Safe even when the token-refresh loop is frozen.
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3_000)),
+      ])
+    } catch {
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('sb-'))
+        .forEach(k => localStorage.removeItem(k))
+    }
+    window.location.reload()
+  }
+
+  // Auto-run on mount
+  useEffect(() => { run() }, [run])
+
+  function copyReport() {
+    const text = buildReport(checks)
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Report copied to clipboard.')
+    }).catch(() => {
+      toast.error('Could not copy. Please select and copy the report manually.')
+    })
+  }
+
+  const groups = groupChecks(checks)
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-brand-bg">
+      <Header title="Diagnostics" subtitle="System checks" />
+
+      <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
+
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-3">
+          <SummaryBadge checks={checks} />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={copyReport}
+              disabled={running}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold text-brand-muted bg-brand-surface border border-brand-border hover:bg-brand-bg transition-colors disabled:opacity-40"
+            >
+              <MdContentCopy className="w-3.5 h-3.5" /> Copy Report
+            </button>
+            <button
+              onClick={run}
+              disabled={running}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white bg-primary hover:bg-primary-light transition-colors disabled:opacity-50"
+            >
+              {running ? <Spinner size="sm" /> : <MdRefresh className="w-4 h-4" />}
+              Re-run All
+            </button>
+          </div>
+        </div>
+
+        {/* Auth-slow / session-stuck banner */}
+        {sessionStuck && (
+          <div className="bg-negative/10 border border-negative/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-negative">Auth service did not respond</p>
+              <p className="text-xs text-brand-muted mt-1 leading-relaxed">
+                This is usually because your project is paused (free-tier) or your session
+                is older than 1 week. <strong className="text-brand-text">Force Sign Out</strong> clears
+                the stored token and reloads — sign back in and everything will work.
+              </p>
+            </div>
+            <button
+              onClick={handleForceSignOut}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-white bg-negative hover:bg-red-700 transition-colors flex-shrink-0 whitespace-nowrap"
+            >
+              <MdLogout className="w-4 h-4" /> Force Sign Out
+            </button>
+          </div>
+        )}
+
+        {/* Check groups */}
+        {Object.entries(groups).map(([groupName, items]) => (
+          <section key={groupName} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <h2 className="section-label">{groupName}</h2>
+              <div className="flex-1 h-px bg-brand-border" />
+              <span className="text-[10px] font-bold text-brand-muted uppercase tracking-wide">
+                {items.filter(c => c.status === 'error').length > 0
+                  ? `${items.filter(c => c.status === 'error').length} error(s)`
+                  : items.filter(c => c.status === 'ok').length === items.length
+                    ? 'All OK'
+                    : ''}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {items.map(c => <CheckRow key={c.id} check={c} />)}
+            </div>
+          </section>
+        ))}
+
+        {/* Runtime error log */}
+        <section className="space-y-2">
+          <div className="flex items-center gap-2">
+            <h2 className="section-label">Runtime Error Log</h2>
+            <div className="flex-1 h-px bg-brand-border" />
+            <button
+              onClick={clearErrorLog}
+              className="flex items-center gap-1 text-[10px] font-bold text-brand-muted hover:text-negative uppercase tracking-wide transition-colors"
+            >
+              <MdDelete className="w-3 h-3" /> Clear
+            </button>
+          </div>
+
+          {errorLog.length === 0 ? (
+            <div className="bg-brand-surface border border-brand-border rounded-xl px-4 py-6 text-center">
+              <MdCheckCircle className="w-6 h-6 text-positive mx-auto mb-1" />
+              <p className="text-sm text-brand-muted">No runtime errors captured yet.</p>
+              <p className="text-xs text-brand-muted mt-0.5">
+                Errors from hooks and components appear here automatically.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+              {errorLog.map(e => (
+                <div
+                  key={e.id}
+                  className="bg-negative/5 border border-negative/20 rounded-xl px-4 py-3 space-y-0.5"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-bold text-negative font-mono">{e.source}</span>
+                    <span className="text-[10px] text-brand-muted ml-auto flex-shrink-0">
+                      {e.ts.toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-brand-text break-all">{e.message}</p>
+                  {e.code    && <p className="text-[10px] font-mono text-brand-muted">code: {e.code}</p>}
+                  {e.detail  && <p className="text-[10px] font-mono text-brand-muted break-all">{e.detail}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Instructions */}
+        <section className="bg-brand-surface border border-brand-border rounded-xl p-5 space-y-3">
+          <h2 className="text-sm font-bold text-brand-text">How to use this page</h2>
+          <ol className="space-y-1.5 text-sm text-brand-muted list-decimal list-inside">
+            <li>Click <strong>Re-run All</strong> to get a fresh snapshot of every system check.</li>
+            <li>Expand any <span className="text-negative font-medium">red (error)</span> row to see the exact error code and message.</li>
+            <li>Compare <strong>Admin RPCs</strong> vs <strong>Direct Table</strong> — if RPC fails but table works, the RLS grant is missing. If both fail, the session is invalid.</li>
+            <li>If <strong>health_check → is_admin=false</strong>, sign out and sign back in to refresh the JWT.</li>
+            <li>Click <strong>Copy Report</strong> and share with the developer to diagnose remotely.</li>
+          </ol>
+        </section>
+
+      </div>
+    </div>
+  )
+}
